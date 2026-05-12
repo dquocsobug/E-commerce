@@ -1,7 +1,7 @@
 import axios from "axios";
 
 const axiosClient = axios.create({
-  baseURL: "http://localhost:8080/api",
+  baseURL: "https://e-commerce-0mr5.onrender.com/api",
   headers: {
     "Content-Type": "application/json",
   },
@@ -26,7 +26,6 @@ axiosClient.interceptors.response.use(
   (response) => {
     const body = response.data;
 
-    // Backend trả dạng ApiResponse: { success, message, data, timestamp }
     if (body && typeof body === "object" && "data" in body) {
       return body.data;
     }
