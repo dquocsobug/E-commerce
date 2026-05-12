@@ -1,0 +1,701 @@
+.page {
+  max-width: 1536px;
+  margin: 0 auto;
+  padding: 48px 32px;
+  background: #f9f9fb;
+  color: #1a1c1d;
+  font-family: Inter, system-ui, sans-serif;
+}
+
+.loading,
+.errorBox {
+  min-height: 60vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: #f9f9fb;
+  color: #414755;
+  font-weight: 700;
+}
+
+.errorBox {
+  color: #ba1a1a;
+}
+
+.orderHeader {
+  margin-bottom: 48px;
+}
+
+.headerRow {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-end;
+  gap: 24px;
+}
+
+.headerRow h1 {
+  margin: 0 0 8px;
+  font-size: 40px;
+  font-weight: 900;
+  letter-spacing: -2px;
+  color: #1a1c1d;
+}
+
+.headerRow p {
+  margin: 0;
+  color: #414755;
+}
+
+.statusBadge {
+  display: inline-flex;
+  align-items: center;
+  padding: 4px 12px;
+  border-radius: 999px;
+  background: #dbeafe;
+  color: #0058bc;
+  font-size: 12px;
+  font-weight: 900;
+  text-transform: uppercase;
+  letter-spacing: 0.6px;
+}
+
+.DELIVERED {
+  background: #dcfce7;
+  color: #15803d;
+}
+
+.CANCELLED {
+  background: #ffdad6;
+  color: #93000a;
+}
+
+.PENDING {
+  background: #fef3c7;
+  color: #92400e;
+}
+
+.CONFIRMED,
+.SHIPPING {
+  background: #d8e2ff;
+  color: #004493;
+}
+
+.headerActions {
+  display: flex;
+  gap: 16px;
+}
+
+.headerActions button {
+  border: none;
+  background: #e2e2e4;
+  color: #1a1c1d;
+  padding: 12px 24px;
+  border-radius: 12px;
+  font-size: 14px;
+  font-weight: 800;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  cursor: pointer;
+  transition: 0.25s;
+}
+
+.headerActions button:hover {
+  background: #d9dadc;
+}
+
+.timeline {
+  position: relative;
+  margin-top: 48px;
+}
+
+.timelineLine {
+  position: absolute;
+  top: 20px;
+  left: 0;
+  right: 0;
+  height: 2px;
+  background: #e8e8ea;
+}
+
+.timelineSteps {
+  position: relative;
+  display: flex;
+  justify-content: space-between;
+}
+
+.timelineStep {
+  background: #f9f9fb;
+  padding: 0 16px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+}
+
+.stepActive,
+.stepInactive {
+  width: 40px;
+  height: 40px;
+  border-radius: 999px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 900;
+}
+
+.stepActive {
+  background: #0058bc;
+  color: white;
+  box-shadow: 0 12px 24px rgba(0, 88, 188, 0.2);
+}
+
+.stepInactive {
+  background: #e2e2e4;
+  color: #717786;
+}
+
+.timelineStep span {
+  font-size: 12px;
+  font-weight: 900;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  color: #717786;
+}
+
+.stepTextActive {
+  color: #0058bc !important;
+}
+
+.mainGrid {
+  display: grid;
+  grid-template-columns: 7fr 3fr;
+  gap: 48px;
+}
+
+.leftCol,
+.rightCol {
+  display: flex;
+  flex-direction: column;
+  gap: 32px;
+}
+
+.whiteCard {
+  background: #ffffff;
+  border-radius: 24px;
+  padding: 32px;
+  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.04);
+}
+
+.cardTitle {
+  margin: 0 0 32px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 18px;
+  font-weight: 900;
+  color: #1a1c1d;
+}
+
+.productList {
+  display: flex;
+  flex-direction: column;
+  gap: 40px;
+}
+
+.orderItem {
+  display: flex;
+  align-items: center;
+  gap: 32px;
+}
+
+.itemImage {
+  width: 128px;
+  height: 128px;
+  border-radius: 16px;
+  background: #eeeef0;
+  overflow: hidden;
+  flex-shrink: 0;
+}
+
+.itemImage img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.itemInfo {
+  flex: 1;
+}
+
+.itemInfo span {
+  font-size: 10px;
+  font-weight: 900;
+  text-transform: uppercase;
+  letter-spacing: 1.5px;
+  color: #414755;
+}
+
+.itemInfo h4 {
+  margin: 4px 0;
+  font-size: 20px;
+  font-weight: 900;
+  color: #1a1c1d;
+}
+
+.itemInfo p {
+  margin: 0;
+  color: #414755;
+  font-size: 14px;
+}
+
+.itemPrice {
+  text-align: right;
+}
+
+.itemPrice p {
+  margin: 0;
+  font-size: 20px;
+  font-weight: 900;
+  color: #1a1c1d;
+}
+
+.reviewBox {
+  position: relative;
+  overflow: hidden;
+  background: #d8e2ff;
+  border: 2px solid rgba(0, 88, 188, 0.1);
+  border-radius: 24px;
+  padding: 40px;
+}
+
+.reviewGlow {
+  position: absolute;
+  top: -48px;
+  right: -48px;
+  width: 192px;
+  height: 192px;
+  background: rgba(0, 88, 188, 0.07);
+  border-radius: 999px;
+  filter: blur(48px);
+}
+
+.reviewContent {
+  position: relative;
+  z-index: 2;
+  display: flex;
+  align-items: center;
+  gap: 32px;
+}
+
+.reviewIcon {
+  background: #ffffff;
+  padding: 16px;
+  border-radius: 20px;
+  box-shadow: 0 18px 40px rgba(0, 88, 188, 0.1);
+  font-size: 48px;
+  flex-shrink: 0;
+}
+
+.reviewText {
+  flex: 1;
+}
+
+.reviewText h3 {
+  margin: 0 0 8px;
+  color: #001a41;
+  font-size: 26px;
+  font-weight: 900;
+}
+
+.reviewText p {
+  margin: 0;
+  color: #26467d;
+  line-height: 1.7;
+}
+
+.reviewText p span {
+  display: block;
+  margin-top: 8px;
+  color: #0058bc;
+  font-weight: 800;
+}
+
+.reviewActions {
+  margin-top: 32px;
+  display: flex;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+
+.reviewActions a {
+  padding: 16px 32px;
+  border-radius: 14px;
+  font-size: 14px;
+  font-weight: 900;
+  text-decoration: none;
+  transition: 0.25s;
+}
+
+.reviewActions a:first-child {
+  background: #0058bc;
+  color: white;
+  box-shadow: 0 14px 28px rgba(0, 88, 188, 0.2);
+}
+
+.reviewActions a:first-child:hover {
+  transform: scale(0.98);
+}
+
+.reviewActions a:last-child {
+  background: rgba(255, 255, 255, 0.5);
+  border: 1px solid rgba(0, 88, 188, 0.2);
+  color: #0058bc;
+}
+
+.reviewActions a:last-child:hover {
+  background: white;
+}
+
+.sideCard {
+  background: #f3f3f5;
+  border-radius: 24px;
+  padding: 32px;
+}
+
+.sideCard h3 {
+  margin: 0 0 24px;
+  color: #414755;
+  font-size: 14px;
+  font-weight: 900;
+  text-transform: uppercase;
+  letter-spacing: 1.5px;
+}
+
+.receiverInfo {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.receiverInfo > div:first-child p {
+  margin: 0;
+  color: #1a1c1d;
+  font-size: 18px;
+  font-weight: 900;
+}
+
+.receiverInfo span {
+  color: #414755;
+}
+
+.receiverInfo > div:last-child {
+  padding-top: 16px;
+  border-top: 1px solid rgba(193, 198, 215, 0.45);
+}
+
+.receiverInfo > div:last-child span {
+  font-size: 14px;
+  line-height: 1.6;
+}
+
+.paymentRows {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  margin-bottom: 32px;
+}
+
+.paymentRows > div {
+  display: flex;
+  justify-content: space-between;
+  color: #414755;
+}
+
+.freeShip {
+  color: #16a34a;
+  font-weight: 700;
+}
+
+.discountRow {
+  color: #ba1a1a !important;
+  font-weight: 700;
+}
+
+.finalRow {
+  padding-top: 16px;
+  border-top: 1px solid rgba(193, 198, 215, 0.45);
+  align-items: flex-end;
+  color: #1a1c1d !important;
+}
+
+.finalRow span {
+  font-weight: 900;
+}
+
+.finalRow strong {
+  color: #0058bc;
+  font-size: 26px;
+  font-weight: 950;
+  letter-spacing: -1px;
+}
+
+.paymentMethod {
+  margin-top: 12px;
+  background: rgba(255, 255, 255, 0.5);
+  padding: 16px;
+  border-radius: 16px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.paymentMethod > span {
+  font-size: 12px;
+  font-weight: 900;
+  text-transform: uppercase;
+  color: #414755;
+}
+
+.paymentMethod div {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.paymentMethod strong {
+  font-size: 14px;
+  color: #1a1c1d;
+}
+
+.supportBtn {
+  width: 100%;
+  border: none;
+  background: #1a1c1d;
+  color: white;
+  padding: 20px;
+  border-radius: 20px;
+  font-size: 16px;
+  font-weight: 900;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  cursor: pointer;
+  transition: 0.25s;
+}
+
+.supportBtn:hover {
+  opacity: 0.9;
+}
+
+.recommendSection {
+  margin-top: 96px;
+  padding-top: 96px;
+  border-top: 1px solid rgba(193, 198, 215, 0.35);
+}
+
+.recommendGrid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 64px;
+}
+
+.recommendGrid h2 {
+  margin: 0 0 40px;
+  color: #1a1c1d;
+  font-size: 32px;
+  font-weight: 900;
+  letter-spacing: -1.5px;
+}
+
+.relatedGrid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 24px;
+}
+
+.relatedCard {
+  text-decoration: none;
+  color: inherit;
+  cursor: pointer;
+}
+
+.relatedCard > div {
+  aspect-ratio: 1;
+  background: #f3f3f5;
+  border-radius: 24px;
+  overflow: hidden;
+  margin-bottom: 16px;
+}
+
+.relatedCard img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  transition: 0.5s;
+}
+
+.relatedCard:hover img {
+  transform: scale(1.05);
+}
+
+.relatedCard h4 {
+  margin: 0 0 6px;
+  font-weight: 900;
+  color: #1a1c1d;
+}
+
+.relatedCard p {
+  margin: 0;
+  color: #0058bc;
+  font-weight: 800;
+}
+
+.guideList {
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+}
+
+.guideCard {
+  text-decoration: none;
+  color: inherit;
+  display: flex;
+  align-items: center;
+  gap: 24px;
+  padding: 16px;
+  border-radius: 20px;
+  transition: 0.25s;
+}
+
+.guideCard:hover {
+  background: #f3f3f5;
+}
+
+.guideCard > div {
+  width: 96px;
+  height: 96px;
+  background: #e2e2e4;
+  border-radius: 14px;
+  overflow: hidden;
+  flex-shrink: 0;
+}
+
+.guideCard img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.guideCard h4 {
+  margin: 0;
+  color: #1a1c1d;
+  font-weight: 900;
+  line-height: 1.4;
+}
+
+.guideCard:hover h4 {
+  color: #0058bc;
+}
+
+.guideCard p {
+  margin: 6px 0 0;
+  color: #414755;
+  font-size: 14px;
+}
+
+@media (max-width: 1024px) {
+  .mainGrid {
+    grid-template-columns: 1fr;
+  }
+
+  .recommendGrid {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 760px) {
+  .page {
+    padding: 32px 18px;
+  }
+
+  .headerRow {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .headerRow h1 {
+    font-size: 32px;
+  }
+
+  .timelineSteps {
+    gap: 10px;
+  }
+
+  .timelineStep {
+    padding: 0 4px;
+  }
+
+  .timelineStep span {
+    font-size: 10px;
+  }
+
+  .orderItem {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .itemPrice {
+    text-align: left;
+  }
+
+  .reviewContent {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
+  .relatedGrid {
+    grid-template-columns: 1fr;
+  }
+
+  .guideCard {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .guideCard > div {
+    width: 100%;
+    height: 180px;
+  }
+}
+.cancelOrderBtn {
+  width: 100%;
+  border: none;
+  outline: none;
+  margin-bottom: 12px;
+  padding: 14px 18px;
+  border-radius: 16px;
+  background: #fee2e2;
+  color: #dc2626;
+  font-size: 15px;
+  font-weight: 800;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  transition: 0.2s ease;
+}
+
+.cancelOrderBtn:hover {
+  background: #dc2626;
+  color: #ffffff;
+  transform: translateY(-2px);
+}
+
+.cancelOrderBtn:disabled {
+  opacity: 0.65;
+  cursor: not-allowed;
+  transform: none;
+}

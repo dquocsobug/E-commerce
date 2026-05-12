@@ -1,0 +1,583 @@
+.admin-promotion-stats {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(160px, 1fr));
+  gap: 16px;
+  margin-bottom: 22px;
+}
+
+.admin-promotion-stat {
+  background: #ffffff;
+  border: 1px solid #e5e7eb;
+  border-radius: 20px;
+  padding: 18px;
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  box-shadow: 0 12px 32px rgba(15, 23, 42, 0.05);
+}
+
+.admin-promotion-stat svg {
+  color: #2563eb;
+}
+
+.admin-promotion-stat span {
+  display: block;
+  color: #64748b;
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.admin-promotion-stat strong {
+  display: block;
+  margin-top: 4px;
+  font-size: 26px;
+  font-weight: 900;
+  color: #0f172a;
+}
+
+.admin-promotion-toolbar {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  margin-bottom: 18px;
+  flex-wrap: wrap;
+}
+
+.admin-promotion-search {
+  flex: 1;
+  min-width: 280px;
+  height: 44px;
+  padding: 0 14px;
+  border: 1px solid #e5e7eb;
+  border-radius: 14px;
+  background: #f8fafc;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  color: #64748b;
+}
+
+.admin-promotion-search input {
+  width: 100%;
+  border: 0;
+  outline: 0;
+  background: transparent;
+  color: #0f172a;
+  font-size: 14px;
+}
+
+.admin-promotion-form-card {
+  margin-bottom: 22px;
+}
+
+.admin-promotion-form-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 16px;
+  margin-bottom: 18px;
+}
+
+.admin-promotion-form-head h3 {
+  margin: 0;
+  color: #0f172a;
+  font-size: 22px;
+  font-weight: 900;
+}
+
+.admin-promotion-form-head p {
+  margin: 6px 0 0;
+  color: #64748b;
+}
+
+.admin-promotion-form {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(240px, 1fr));
+  gap: 16px;
+}
+
+.admin-promotion-group {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.admin-promotion-group.span-2,
+.admin-promotion-actions.span-2 {
+  grid-column: span 2;
+}
+
+.admin-promotion-group label {
+  color: #334155;
+  font-size: 13px;
+  font-weight: 900;
+}
+
+.admin-promotion-group input,
+.admin-promotion-group select {
+  height: 44px;
+  border: 1px solid #e5e7eb;
+  border-radius: 14px;
+  background: #ffffff;
+  color: #0f172a;
+  padding: 0 12px;
+  outline: 0;
+  font-size: 14px;
+  font-family: inherit;
+}
+
+.admin-promotion-group input:focus,
+.admin-promotion-group select:focus {
+  border-color: #2563eb;
+  box-shadow: 0 0 0 4px rgba(37, 99, 235, 0.12);
+}
+
+.admin-promotion-check {
+  display: flex;
+  align-items: end;
+}
+
+.admin-promotion-check label {
+  height: 44px;
+  padding: 0 14px;
+  border: 1px solid #e5e7eb;
+  border-radius: 14px;
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  color: #334155;
+  font-weight: 800;
+  background: #f8fafc;
+}
+
+.admin-promotion-check input {
+  width: 16px;
+  height: 16px;
+}
+
+.admin-promotion-actions {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.admin-promotion-table-wrap {
+  width: 100%;
+  overflow-x: auto;
+}
+
+.admin-promotion-table {
+  width: 100%;
+  border-collapse: collapse;
+  min-width: 1120px;
+}
+
+.admin-promotion-table thead {
+  background: #f8fafc;
+}
+
+.admin-promotion-table th {
+  padding: 14px 12px;
+  text-align: left;
+  color: #475569;
+  font-size: 13px;
+  font-weight: 900;
+  border-bottom: 1px solid #e5e7eb;
+  white-space: nowrap;
+}
+
+.admin-promotion-table td {
+  padding: 14px 12px;
+  border-bottom: 1px solid #f1f5f9;
+  color: #334155;
+  font-size: 14px;
+  vertical-align: middle;
+}
+
+.admin-promotion-name strong {
+  display: block;
+  color: #0f172a;
+  font-size: 15px;
+}
+
+.admin-promotion-name span {
+  display: block;
+  margin-top: 4px;
+  color: #94a3b8;
+  font-size: 12px;
+}
+
+.admin-promotion-discount strong {
+  color: #dc2626;
+  font-size: 16px;
+}
+
+.admin-promotion-time span {
+  display: block;
+  white-space: nowrap;
+  color: #475569;
+}
+
+.admin-promotion-time span + span {
+  margin-top: 4px;
+  color: #64748b;
+}
+
+.admin-promotion-badge {
+  display: inline-flex;
+  min-height: 28px;
+  align-items: center;
+  justify-content: center;
+  padding: 0 10px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 900;
+  white-space: nowrap;
+}
+
+.admin-promotion-badge.active {
+  background: #dcfce7;
+  color: #15803d;
+}
+
+.admin-promotion-badge.inactive {
+  background: #fee2e2;
+  color: #b91c1c;
+}
+
+.admin-promotion-products {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  max-width: 360px;
+}
+
+.admin-promotion-products span {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 28px;
+  padding: 0 8px;
+  border-radius: 999px;
+  background: #f1f5f9;
+  color: #334155;
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.admin-promotion-products button {
+  width: 22px;
+  height: 22px;
+  border: 0;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  background: #fee2e2;
+  color: #b91c1c;
+  cursor: pointer;
+}
+
+.admin-promotion-products em {
+  color: #94a3b8;
+  font-style: normal;
+}
+
+.admin-promotion-row-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.admin-promotion-action {
+  width: 36px;
+  height: 36px;
+  border: 0;
+  border-radius: 12px;
+  display: grid;
+  place-items: center;
+  cursor: pointer;
+  transition: 0.2s ease;
+}
+
+.admin-promotion-action.assign {
+  background: #dcfce7;
+  color: #15803d;
+}
+
+.admin-promotion-action.edit {
+  background: #dbeafe;
+  color: #1d4ed8;
+}
+
+.admin-promotion-action.danger {
+  background: #fee2e2;
+  color: #b91c1c;
+}
+
+.admin-promotion-action:hover {
+  filter: brightness(0.96);
+}
+
+.admin-promotion-empty {
+  text-align: center;
+  color: #64748b;
+  padding: 34px !important;
+}
+
+.admin-promotion-modal-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 999;
+  padding: 24px;
+  background: rgba(15, 23, 42, 0.58);
+  display: grid;
+  place-items: center;
+}
+
+.admin-promotion-modal {
+  width: min(720px, 100%);
+  max-height: 86vh;
+  overflow: auto;
+  background: #ffffff;
+  border-radius: 26px;
+  box-shadow: 0 30px 80px rgba(15, 23, 42, 0.35);
+}
+
+.admin-promotion-modal-head {
+  padding: 20px 22px;
+  border-bottom: 1px solid #e5e7eb;
+  display: flex;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.admin-promotion-modal-head h3 {
+  margin: 0;
+  color: #0f172a;
+  font-size: 22px;
+  font-weight: 900;
+}
+
+.admin-promotion-modal-head p {
+  margin: 6px 0 0;
+  color: #64748b;
+}
+
+.admin-promotion-modal-head button {
+  width: 40px;
+  height: 40px;
+  border: 0;
+  border-radius: 14px;
+  background: #f1f5f9;
+  display: grid;
+  place-items: center;
+  cursor: pointer;
+}
+
+.admin-promotion-product-list {
+  padding: 18px 22px;
+  display: grid;
+  gap: 10px;
+}
+
+.admin-promotion-product-option {
+  padding: 12px;
+  border: 1px solid #e5e7eb;
+  border-radius: 18px;
+  background: #f8fafc;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  cursor: pointer;
+}
+
+.admin-promotion-product-option input {
+  width: 18px;
+  height: 18px;
+}
+
+.admin-promotion-product-option strong {
+  display: block;
+  color: #0f172a;
+}
+
+.admin-promotion-product-option span {
+  display: block;
+  margin-top: 4px;
+  color: #64748b;
+  font-size: 13px;
+}
+
+.admin-promotion-modal-actions {
+  padding: 18px 22px 22px;
+  display: flex;
+  gap: 12px;
+  border-top: 1px solid #e5e7eb;
+}
+
+@media (max-width: 980px) {
+  .admin-promotion-stats {
+    grid-template-columns: repeat(2, 1fr);
+  }
+
+  .admin-promotion-search {
+    min-width: 100%;
+  }
+}
+
+@media (max-width: 640px) {
+  .admin-promotion-stats,
+  .admin-promotion-form {
+    grid-template-columns: 1fr;
+  }
+
+  .admin-promotion-group.span-2,
+  .admin-promotion-actions.span-2 {
+    grid-column: span 1;
+  }
+
+  .admin-promotion-modal-overlay {
+    padding: 12px;
+  }
+}
+/* ===== Fancy Button (Create Promotion) ===== */
+
+.c-button {
+  border: none;
+  background: linear-gradient(140deg, #4b76c8 0%, #1f4691 100%);
+  border-radius: 45px;
+  font-size: 16px;
+  text-align: left;
+  padding: 6px;
+  border: 3px solid rgb(37, 37, 37);
+  border-style: outset;
+  box-shadow: -6px -5px 18px rgba(255, 255, 255, 0.1);
+  cursor: pointer;
+  transition: transform 0.2s ease;
+}
+
+/* Hover toàn button */
+.c-button:hover {
+  transform: translateY(-2px) scale(1.02);
+}
+
+/* Click */
+.c-button:active {
+  transform: scale(0.96);
+}
+
+.c-button .c-main {
+  display: flex;
+  align-items: center;
+  border-radius: 45px;
+  color: #fff;
+  padding: 10px 18px 10px 6px;
+  transition: all 0.4s ease;
+  border: 1px solid transparent;
+}
+
+/* Icon container */
+.c-ico {
+  position: relative;
+  margin-right: 12px;
+}
+
+/* Blur background */
+.c-ico .c-blur {
+  background: linear-gradient(318deg, #4b76c8 0%, #1f4691 100%);
+  border-radius: 100%;
+  padding: 10px 20px;
+  filter: blur(1.5px);
+}
+
+/* Icon text (+) */
+.c-ico .ico-text {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  font-weight: 900;
+  font-size: 18px;
+}
+
+/* Hover hiệu ứng inner */
+.c-button .c-main:hover {
+  box-shadow: inset 0px 0px 6px rgba(17, 17, 17, 0.6);
+  border: 1px solid rgba(26, 26, 26, 0.5);
+  color: rgba(255, 255, 255, 0.75);
+}
+
+/* ===== Responsive fix ===== */
+@media (max-width: 768px) {
+  .c-button {
+    width: 100%;
+    justify-content: center;
+  }
+
+  .c-button .c-main {
+    justify-content: center;
+  }
+}
+/* ===== Button size FIX ===== */
+
+.c-button {
+  border: none;
+  background: linear-gradient(140deg, #4b76c8 0%, #1f4691 100%);
+  border-radius: 999px;
+
+  /* ↓ giảm size */
+  font-size: 14px;
+  padding: 4px;
+
+  border: 2px solid rgb(37, 37, 37);
+  border-style: outset;
+
+  box-shadow: -4px -3px 12px rgba(255, 255, 255, 0.08);
+  cursor: pointer;
+
+  transition: all 0.2s ease;
+}
+
+.c-button .c-main {
+  font-weight: bold;
+  display: flex;
+  align-items: center;
+
+  padding: 6px 14px 6px 6px; /* ↓ nhỏ lại */
+  border-radius: 999px;
+  color: #fff;
+
+  transition: all 0.3s ease;
+}
+
+/* icon */
+.c-ico {
+  position: relative;
+  margin-right: 8px; /* ↓ giảm khoảng cách */
+}
+
+.c-ico .c-blur {
+  padding: 6px 14px; /* ↓ nhỏ lại */
+  border-radius: 100%;
+  filter: blur(1px);
+}
+
+.c-ico .ico-text {
+  font-size: 14px; /* ↓ nhỏ icon */
+  font-weight: 900;
+}
+
+/* hover */
+.c-button:hover {
+  transform: translateY(-1px);
+}
+
+.c-button .c-main:hover {
+  box-shadow: inset 0px 0px 5px rgba(17, 17, 17, 0.5);
+  color: rgba(255, 255, 255, 0.85);
+}
+
+/* click */
+.c-button:active {
+  transform: scale(0.95);
+}
