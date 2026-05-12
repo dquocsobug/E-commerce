@@ -11,20 +11,23 @@ import org.springframework.web.servlet.config.annotation.WebMvcConfigurer;
 @Configuration
 public class WebConfig implements WebMvcConfigurer {
 
-    /**
-     * Cho phép CORS ở tầng MVC (bổ sung cho Security CORS).
-     * Cần thiết cho các endpoint không đi qua security filter chain
-     * (ví dụ actuator, error page…).
-     */
     @Override
     public void addCorsMappings(CorsRegistry registry) {
         registry.addMapping("/api/**")
                 .allowedOriginPatterns(
                         "http://localhost:3000",
                         "http://localhost:5173",
-                        "https://*.yourdomain.com"
+                        "https://e-commerce-jet-zeta-11.vercel.app",
+                        "https://techstore-quoc.vercel.app"
                 )
-                .allowedMethods("GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS")
+                .allowedMethods(
+                        "GET",
+                        "POST",
+                        "PUT",
+                        "PATCH",
+                        "DELETE",
+                        "OPTIONS"
+                )
                 .allowedHeaders("*")
                 .allowCredentials(true)
                 .maxAge(3600);
