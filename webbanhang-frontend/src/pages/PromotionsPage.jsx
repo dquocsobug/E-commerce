@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
+import { useQuery } from "@tanstack/react-query";
 import { Link } from "react-router-dom";
 import { productApi, promotionApi, postApi } from "../api";
 import { formatVND } from "../utils/format";
@@ -50,9 +51,6 @@ export default function PromotionsPage() {
   minutes: 45,
   seconds: 30,
 });
-  const [products, setProducts] = useState([]);
-  const [promotions, setPromotions] = useState([]);
-  const [posts, setPosts] = useState([]);
 
   const [selectedCategory, setSelectedCategory] = useState("Tất cả");
   const [discountFilters, setDiscountFilters] = useState([]);
@@ -86,36 +84,29 @@ export default function PromotionsPage() {
   return () => clearInterval(timer);
 }, []);
 
-  useEffect(() => {
-    const fetchData = async () => {
-      try {
-        const [productRes, promoRes, postRes] = await Promise.allSettled([
-          productApi.getAll({ page: 0, size: 20 }),
-          promotionApi.getActive(),
-          postApi.getAll({ page: 0, size: 4 }),
-        ]);
+  const { data: products = [], isLoading: productsLoading } = useQuery({
+  queryKey: ["promotion-products"],
+  queryFn: async () => {
+    const data = await productApi.getAll({ page: 0, size: 20 });
+    return data?.content || data?.data?.content || data?.data || [];
+  },
+});
 
-        if (productRes.status === "fulfilled") {
-          const data = productRes.value;
-          setProducts(data?.content || data?.data?.content || data?.data || []);
-        }
+const { data: promotions = [] } = useQuery({
+  queryKey: ["active-promotions"],
+  queryFn: async () => {
+    const data = await promotionApi.getActive();
+    return Array.isArray(data) ? data : data?.data || [];
+  },
+});
 
-        if (promoRes.status === "fulfilled") {
-          const data = promoRes.value;
-          setPromotions(Array.isArray(data) ? data : data?.data || []);
-        }
-
-        if (postRes.status === "fulfilled") {
-          const data = postRes.value;
-          setPosts(data?.content || data?.data?.content || data?.data || []);
-        }
-      } catch (error) {
-        console.error("Lỗi tải trang khuyến mãi:", error);
-      }
-    };
-
-    fetchData();
-  }, []);
+const { data: posts = [] } = useQuery({
+  queryKey: ["promotion-posts"],
+  queryFn: async () => {
+    const data = await postApi.getAll({ page: 0, size: 4 });
+    return data?.content || data?.data?.content || data?.data || [];
+  },
+});
 
   const categories = useMemo(() => {
     const list = products.map((p) => p.categoryName).filter(Boolean);
@@ -180,7 +171,13 @@ export default function PromotionsPage() {
       setAddingId(null);
     }
   };
-
+  if (productsLoading) {
+  return (
+    <main className={styles.page}>
+      <div className={styles.emptyBox}>Đang tải khuyến mãi...</div>
+    </main>
+  );
+}
   return (
     <main className={styles.page}>
       <section className={styles.hero}>

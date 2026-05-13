@@ -1,4 +1,5 @@
-import { useState, useEffect } from "react";
+import { useState } from "react";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link, useNavigate, useLocation } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
 import axiosClient from "../api/axiosClient";
@@ -269,12 +270,7 @@ export default function MyReviewsPage() {
   const { user, logout } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
-
-  // Data
-  const [myReviews,    setMyReviews]    = useState([]);
-  const [deliverables, setDeliverables] = useState([]); // sản phẩm DELIVERED chưa review
-  const [loadingReviews, setLoadingReviews] = useState(true);
-  const [loadingOrders,  setLoadingOrders]  = useState(true);
+  const queryClient = useQueryClient();
 
   // Modal
   const [reviewModal,  setReviewModal]  = useState(null);  // { item, existingReview? }
@@ -295,61 +291,57 @@ export default function MyReviewsPage() {
   const initials = (user?.fullName || "U")
     .split(" ").map((w) => w[0]).slice(-2).join("").toUpperCase();
 
-  // GET /reviews/my
-  useEffect(() => {
-    const fetch = async () => {
-      try {
-        setLoadingReviews(true);
-        const res = await axiosClient.get("/reviews/my", {
-  params: { page: 0, size: 50 },
+    const {
+  data: myReviews = [],
+  isLoading: loadingReviews,
+} = useQuery({
+  queryKey: ["my-reviews"],
+  queryFn: async () => {
+    const res = await axiosClient.get("/reviews/my", {
+      params: { page: 0, size: 50 },
+    });
+
+    const data = res?.data?.data || res?.data || res;
+    return data?.content || [];
+  },
 });
-        const data = res?.data?.data || res?.data || res;
-        setMyReviews(data?.content || []);
-      } catch {
-        showToast("Không thể tải danh sách đánh giá.", "error");
-      } finally {
-        setLoadingReviews(false);
-      }
-    };
-    fetch();
-  }, []);
 
-  // GET /orders/my — lọc DELIVERED, lấy sản phẩm chưa review
-  useEffect(() => {
-    const fetchDeliverables = async () => {
-      try {
-        setLoadingOrders(true);
-        const res  = await axiosClient.get("/orders/my", {
-          params: { page: 0, size: 50, status: "DELIVERED" },
+const {
+  data: deliverables = [],
+  isLoading: loadingOrders,
+} = useQuery({
+  queryKey: ["review-deliverables"],
+  queryFn: async () => {
+    const res = await axiosClient.get("/orders/my", {
+      params: { page: 0, size: 50, status: "DELIVERED" },
+    });
+
+    const data = res?.data?.data || res?.data || res;
+    const orders = data?.content || [];
+
+    const detailPromises = orders.map((o) =>
+      axiosClient
+        .get(`/orders/my/${o.orderId}`)
+        .then((r) => r?.data?.data || r?.data || r)
+        .catch(() => null)
+    );
+
+    const details = (await Promise.all(detailPromises)).filter(Boolean);
+
+    const items = [];
+
+    details.forEach((order) => {
+      (order.orderDetails || []).forEach((d) => {
+        items.push({
+          orderId: order.orderId,
+          product: d.product,
         });
-        const data = res?.data?.data || res?.data || res;
-        const orders = data?.content || [];
+      });
+    });
 
-        // Lấy chi tiết từng đơn để có orderDetails
-        const detailPromises = orders.map((o) =>
-          axiosClient.get(`/orders/my/${o.orderId}`)
-            .then((r) => r?.data?.data || r?.data || r)
-            .catch(() => null)
-        );
-        const details = (await Promise.all(detailPromises)).filter(Boolean);
-
-        // Flatten sản phẩm, gắn orderId
-        const items = [];
-        details.forEach((order) => {
-          (order.orderDetails || []).forEach((d) => {
-            items.push({ orderId: order.orderId, product: d.product });
-          });
-        });
-
-        setDeliverables(items);
-      } catch {
-        // silent — không block trang
-      } finally {
-        setLoadingOrders(false);
-      }
-    };
-    fetchDeliverables();
-  }, []);
+    return items;
+  },
+});
 
   // Sản phẩm chưa review = deliverables mà productId chưa có trong myReviews
   const reviewedIds = myReviews.map((r) => r.productId);
@@ -358,26 +350,20 @@ export default function MyReviewsPage() {
   );
 
   // Khi lưu review thành công
-  const handleReviewSaved = (savedReview) => {
-    if (!savedReview) return;
-
-    setMyReviews((prev) => {
-      const exists = prev.find((r) => r.reviewId === savedReview.reviewId);
-      if (exists) {
-        return prev.map((r) => r.reviewId === savedReview.reviewId ? savedReview : r);
-      }
-      return [savedReview, ...prev];
-    });
-    showToast("Đánh giá đã được lưu thành công!");
-  };
+  const handleReviewSaved = () => {
+  queryClient.invalidateQueries({ queryKey: ["my-reviews"] });
+  queryClient.invalidateQueries({ queryKey: ["review-deliverables"] });
+  showToast("Đánh giá đã được lưu thành công!");
+};
 
   // DELETE /reviews/{reviewId}
   const handleDeleteConfirm = async () => {
     if (!deleteTarget) return;
     try {
       await axiosClient.delete(`/reviews/${deleteTarget.reviewId}`);
-      setMyReviews((prev) => prev.filter((r) => r.reviewId !== deleteTarget.reviewId));
-      showToast("Đã xoá đánh giá.");
+      queryClient.invalidateQueries({ queryKey: ["my-reviews"] });
+queryClient.invalidateQueries({ queryKey: ["review-deliverables"] });
+showToast("Đã xoá đánh giá.");
     } catch {
       showToast("Xoá thất bại. Vui lòng thử lại.", "error");
     } finally {

@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef } from "react";
+import { useQuery } from "@tanstack/react-query";
 import { Link } from "react-router-dom";
 import { postApi, productApi, promotionApi } from "../api";
 import { formatVND } from "../utils/format";
@@ -520,23 +521,41 @@ const SuggestionsSection = ({ posts }) => (
 // ─── MAIN ────────────────────────────────────────────────────────────────────
 
 export default function HomePage() {
-  const [posts, setPosts] = useState(MOCK_POSTS);
-  const [products, setProducts] = useState(MOCK_PRODUCTS);
-  const [promotions, setPromotions] = useState([]);
+  const { data: homeData = {} } = useQuery({
+  queryKey: ["home-data"],
+  queryFn: async () => {
+    const [postsRes, productsRes, promoRes] = await Promise.allSettled([
+      postApi.getAll({ page: 0, size: 8 }),
+      productApi.getAll({ page: 0, size: 4 }),
+      promotionApi.getActive(),
+    ]);
 
-  useEffect(() => {
-    const fetchAll = async () => {
-      const [postsRes, productsRes, promoRes] = await Promise.allSettled([
-        postApi.getAll({ page: 0, size: 8 }),
-        productApi.getAll({ page: 0, size: 4 }),
-        promotionApi.getActive(),
-      ]);
-      if (postsRes.status === "fulfilled" && postsRes.value?.content?.length) setPosts(postsRes.value.content);
-      if (productsRes.status === "fulfilled" && productsRes.value?.content?.length) setProducts(productsRes.value.content);
-      if (promoRes.status === "fulfilled" && Array.isArray(promoRes.value)) setPromotions(promoRes.value);
+    const posts =
+      postsRes.status === "fulfilled" && postsRes.value?.content?.length
+        ? postsRes.value.content
+        : MOCK_POSTS;
+
+    const products =
+      productsRes.status === "fulfilled" && productsRes.value?.content?.length
+        ? productsRes.value.content
+        : MOCK_PRODUCTS;
+
+    const promotions =
+      promoRes.status === "fulfilled" && Array.isArray(promoRes.value)
+        ? promoRes.value
+        : [];
+
+    return {
+      posts,
+      products,
+      promotions,
     };
-    fetchAll();
-  }, []);
+  },
+});
+
+const posts = homeData.posts || MOCK_POSTS;
+const products = homeData.products || MOCK_PRODUCTS;
+const promotions = homeData.promotions || [];
 
   return (
     <div className={styles.page}>

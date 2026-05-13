@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
+import { useQuery } from "@tanstack/react-query";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import { productApi, postApi, reviewApi } from "../api";
 import { useCart } from "../context/CartContext";
@@ -36,65 +37,82 @@ export default function ProductDetailPage() {
   const productId = id;
   const navigate = useNavigate();
   const { addToCart } = useCart();
-  const [reviews, setReviews] = useState([]);
-  const [product, setProduct] = useState(null);
-  const [ratingStats, setRatingStats] = useState(null);
-  const [featuredProducts, setFeaturedProducts] = useState([]);
-  const [saleProducts, setSaleProducts] = useState([]);
-  const [relatedPosts, setRelatedPosts] = useState([]);
   const [activeImage, setActiveImage] = useState("");
   const [adding, setAdding] = useState(false);
+  
+  const { data: product = null, isLoading: productLoading } = useQuery({
+  queryKey: ["product-detail", productId],
+  queryFn: async () => {
+    const res = await productApi.getById(productId);
+    return res?.data || res;
+  },
+  enabled: !!productId,
+});
 
-  useEffect(() => {
-    const fetchData = async () => {
-      try {
-        const [productRes, ratingRes, featuredRes, saleRes, postRes, reviewRes] =
-          await Promise.allSettled([
-            productApi.getById(productId),
-            productApi.getRatingStats?.(productId),
-            productApi.getFeatured?.(),
-            productApi.getOnSale?.(),
-            postApi.getAll?.({ page: 0, size: 3 }),
-            reviewApi.getByProduct(productId, { page: 0, size: 10 }),
-          ]);
+const { data: ratingStats = null } = useQuery({
+  queryKey: ["product-rating-stats", productId],
+  queryFn: async () => {
+    const res = await productApi.getRatingStats?.(productId);
+    return res?.data || res;
+  },
+  enabled: !!productId,
+});
 
-        if (productRes.status === "fulfilled") {
-          const data = productRes.value?.data || productRes.value;
-          setProduct(data);
-          setActiveImage(data?.mainImageUrl || data?.images?.find((i) => i.isMain)?.imageUrl || "");
-        }
+const { data: featuredProducts = [] } = useQuery({
+  queryKey: ["featured-products"],
+  queryFn: async () => {
+    const res = await productApi.getFeatured?.();
+    const data = res?.data || res;
+    return Array.isArray(data) ? data : [];
+  },
+});
 
-        if (ratingRes.status === "fulfilled") {
-          setRatingStats(ratingRes.value?.data || ratingRes.value);
-        }
+const { data: saleProducts = [] } = useQuery({
+  queryKey: ["sale-products"],
+  queryFn: async () => {
+    const res = await productApi.getOnSale?.();
+    const data = res?.data || res;
+    return Array.isArray(data) ? data : [];
+  },
+});
 
-        if (featuredRes.status === "fulfilled") {
-          const data = featuredRes.value?.data || featuredRes.value;
-          setFeaturedProducts(Array.isArray(data) ? data : []);
-        }
+const { data: relatedPosts = [] } = useQuery({
+  queryKey: ["related-posts", productId],
+  queryFn: async () => {
+    const res = await postApi.getAll?.({
+      page: 0,
+      size: 3,
+      productId,
+    });
 
-        if (saleRes.status === "fulfilled") {
-          const data = saleRes.value?.data || saleRes.value;
-          setSaleProducts(Array.isArray(data) ? data : []);
-        }
+    const data = res?.data || res;
+    return data?.content || data || [];
+  },
+  enabled: !!productId,
+});
 
-        if (postRes.status === "fulfilled") {
-          const data = postRes.value?.data || postRes.value;
-          setRelatedPosts(data?.content || data || []);
-        }
+const { data: reviews = [] } = useQuery({
+  queryKey: ["product-reviews", productId],
+  queryFn: async () => {
+    const res = await reviewApi.getByProduct(productId, {
+      page: 0,
+      size: 10,
+    });
 
-        if (reviewRes.status === "fulfilled") {
-          const data = reviewRes.value?.data || reviewRes.value;
-          setReviews(Array.isArray(data?.content) ? data.content : []);
-        }
+    const data = res?.data || res;
+    return Array.isArray(data?.content) ? data.content : [];
+  },
+  enabled: !!productId,
+});
+useEffect(() => {
+  if (!product) return;
 
-      } catch (error) {
-        console.error("Lỗi tải chi tiết sản phẩm:", error);
-      }
-    };
-
-    fetchData();
-  }, [productId]);
+  setActiveImage(
+    product?.mainImageUrl ||
+      product?.images?.find((i) => i.isMain)?.imageUrl ||
+      ""
+  );
+}, [product]);
 
   const galleryImages = useMemo(() => {
     if (!product) return [];
@@ -109,7 +127,7 @@ export default function ProductDetailPage() {
     return [...new Set(imgs.filter(Boolean))];
   }, [product]);
 
-  if (!product) {
+  if (productLoading || !product) {
     return (
       <main className={styles.page}>
         <div className={styles.loading}>Đang tải chi tiết sản phẩm...</div>
@@ -205,7 +223,12 @@ export default function ProductDetailPage() {
   Mua ngay
 </button>
 
-            <button type="button" onClick={handleAddToCart} className={styles.cartBtn}>
+            <button
+  type="button"
+  onClick={handleAddToCart}
+  className={styles.cartBtn}
+  disabled={adding}
+>
               <span>🛒</span>
               {adding ? "Đang thêm..." : "Thêm vào giỏ hàng"}
             </button>

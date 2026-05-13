@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { useQuery } from "@tanstack/react-query";
 import { useParams, Link } from "react-router-dom";
 import axiosClient from "../api/axiosClient";
 import styles from "./PostDetailPage.module.css";
@@ -31,6 +32,8 @@ const StarRating = ({ rating, count }) => (
     <span className={styles.ratingCount}>({count} đánh giá)</span>
   </div>
 );
+const fallbackImg = "/images/placeholder.png";
+
 const getImageUrl = (url) => {
   if (!url) return fallbackImg;
   if (url.startsWith("http")) return url;
@@ -138,76 +141,59 @@ export default function PostDetail() {
   const { id } = useParams();
 const postId = id;
 
-  const [post, setPost] = useState(null);
   const [comments, setComments] = useState([]);
   const [commentPage, setCommentPage] = useState(0);
   const [commentTotal, setCommentTotal] = useState(0);
   const [commentLast, setCommentLast] = useState(true);
   const [newComment, setNewComment] = useState("");
   const [submitting, setSubmitting] = useState(false);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState(null);
   const [readingProgress, setReadingProgress] = useState(0);
   const { toasts, show: showToast } = useToast();
 
-  // Fetch post + comments
-  useEffect(() => {
-  const fetchData = async () => {
-    try {
-      setLoading(true);
-      setError(null);
+  const {
+  data: post = null,
+  isLoading,
+  isError,
+} = useQuery({
+  queryKey: ["post-detail", postId],
+  enabled: !!postId,
+  queryFn: async () => {
+    const postRes = await axiosClient.get(`/posts/${postId}`);
 
-      // 1. Tải bài viết trước
-      const postRes = await axiosClient.get(`/posts/${postId}`);
+    const postData =
+      postRes?.data?.data ||
+      postRes?.data ||
+      postRes;
 
-const postData =
-  postRes?.data?.data || // axios thường
-  postRes?.data ||       // response.data
-  postRes;               // axiosClient đã unwrap sẵn
-
-if (!postData) {
-  throw new Error("Không có dữ liệu bài viết");
-}
-
-setPost(postData);
-setCommentTotal(postData.commentCount ?? 0);
-
-      setPost(postData);
-      setCommentTotal(postData.commentCount || 0);
-
-      // 2. Tải comment riêng, lỗi comment không làm hỏng bài viết
-      try {
-        const cmtRes = await axiosClient.get(`/comments/post/${postId}`, {
-          params: { page: 0, size: 10 },
-        });
-
-        const cmtData =
-  cmtRes?.data?.data ||
-  cmtRes?.data ||
-  cmtRes;
-        setComments(cmtData?.content || []);
-        setCommentTotal(cmtData?.totalElements ?? postData.commentCount ?? 0);
-        setCommentLast(cmtData?.last ?? true);
-        setCommentPage(0);
-      } catch (commentErr) {
-        console.warn("Không tải được bình luận:", commentErr);
-        setComments([]);
-        setCommentLast(true);
-      }
-    } catch (err) {
-      console.error("Lỗi tải bài viết:", err);
-      console.error("Status:", err.response?.status);
-      console.error("Data:", err.response?.data);
-      console.error("URL:", err.config?.url);
-
-      setError("Không thể tải bài viết. Vui lòng thử lại.");
-    } finally {
-      setLoading(false);
+    if (!postData) {
+      throw new Error("Không có dữ liệu bài viết");
     }
-  };
 
-  if (postId) fetchData();
-}, [postId]);
+    try {
+      const cmtRes = await axiosClient.get(`/comments/post/${postId}`, {
+        params: { page: 0, size: 10 },
+      });
+
+      const cmtData =
+        cmtRes?.data?.data ||
+        cmtRes?.data ||
+        cmtRes;
+
+      setComments(cmtData?.content || []);
+      setCommentTotal(cmtData?.totalElements ?? postData.commentCount ?? 0);
+      setCommentLast(cmtData?.last ?? true);
+      setCommentPage(0);
+    } catch (commentErr) {
+      console.warn("Không tải được bình luận:", commentErr);
+      setComments([]);
+      setCommentTotal(postData.commentCount ?? 0);
+      setCommentLast(true);
+      setCommentPage(0);
+    }
+
+    return postData;
+  },
+});
 
   // Load more comments
   const handleLoadMoreComments = async () => {
@@ -216,9 +202,14 @@ setCommentTotal(postData.commentCount ?? 0);
       const res = await axiosClient.get(`/comments/post/${postId}`, {
         params: { page: nextPage, size: 10 },
       });
-      setComments((prev) => [...prev, ...res.data.data.content]);
-      setCommentPage(nextPage);
-      setCommentLast(res.data.data.last);
+      const data =
+  res?.data?.data ||
+  res?.data ||
+  res;
+
+setComments((prev) => [...prev, ...(data?.content || [])]);
+setCommentPage(nextPage);
+setCommentLast(data?.last ?? true);
     } catch {
       // silent
     }
@@ -261,7 +252,12 @@ setCommentTotal(postData.commentCount ?? 0);
         postId: Number(postId),
         content: newComment.trim(),
       });
-      setComments((prev) => [res.data.data, ...prev]);
+      const createdComment =
+  res?.data?.data ||
+  res?.data ||
+  res;
+
+setComments((prev) => [createdComment, ...prev]);
       setCommentTotal((t) => t + 1);
       showToast("Bình luận của bạn đã được gửi.", "success");
     } catch {
@@ -272,7 +268,7 @@ setCommentTotal(postData.commentCount ?? 0);
   };
 
   // ── Render states ────────────────────────────────────────────────────────────
-  if (loading) {
+  if (isLoading) {
     return (
       <div className={styles.loadingScreen}>
         <div className={styles.loadingSpinner} />
@@ -281,14 +277,16 @@ setCommentTotal(postData.commentCount ?? 0);
     );
   }
 
-  if (error) {
-    return (
-      <div className={styles.loadingScreen}>
-        <p>{error}</p>
-        <Link to="/posts" className={styles.btnView}>Quay lại danh sách bài viết</Link>
-      </div>
-    );
-  }
+  if (isError) {
+  return (
+    <div className={styles.loadingScreen}>
+      <p>Không thể tải bài viết. Vui lòng thử lại.</p>
+      <Link to="/posts" className={styles.btnView}>
+        Quay lại danh sách bài viết
+      </Link>
+    </div>
+  );
+}
 
   if (!post) return null;
 

@@ -1,4 +1,5 @@
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
+import { useQuery } from "@tanstack/react-query";
 import { Link, useParams } from "react-router-dom";
 import { orderApi, productApi, postApi } from "../api";
 import { formatVND } from "../utils/format";
@@ -42,54 +43,64 @@ const stepByStatus = {
 export default function OrderDetailPage() {
   const { id } = useParams();
 
-  const [order, setOrder] = useState(null);
-  const [relatedProducts, setRelatedProducts] = useState([]);
-  const [guides, setGuides] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState("");
   const [cancelling, setCancelling] = useState(false);
 
-  useEffect(() => {
-    const fetchOrder = async () => {
-      try {
-        setLoading(true);
-        setError("");
+const {
+  data: orderDetailData = {
+    order: null,
+    relatedProducts: [],
+    guides: [],
+  },
+  isLoading: loading,
+  error,
+  refetch,
+} = useQuery({
+  queryKey: ["order-detail", id],
+  queryFn: async () => {
+    const [orderRes, productRes, postRes] = await Promise.allSettled([
+      orderApi.getOrderById(id),
+      productApi.getAll?.({ page: 0, size: 2 }),
+      postApi.getAll?.({ page: 0, size: 2 }),
+    ]);
 
-        const [orderRes, productRes, postRes] = await Promise.allSettled([
-          orderApi.getOrderById(id),
-          productApi.getAll?.({ page: 0, size: 2 }),
-          postApi.getAll?.({ page: 0, size: 2 }),
-        ]);
+    if (orderRes.status !== "fulfilled") {
+      throw orderRes.reason;
+    }
 
-        if (orderRes.status === "fulfilled") {
-          const data = orderRes.value?.data || orderRes.value;
-          setOrder(data);
-        } else {
-          throw orderRes.reason;
-        }
+    const order = orderRes.value?.data || orderRes.value;
 
-        if (productRes.status === "fulfilled") {
-          const data = productRes.value?.content || productRes.value?.data?.content || [];
-          setRelatedProducts(data.slice(0, 2));
-        }
+    let relatedProducts = [];
+    let guides = [];
 
-        if (postRes.status === "fulfilled") {
-          const data = postRes.value?.content || postRes.value?.data?.content || [];
-          setGuides(data.slice(0, 2));
-        }
-      } catch (err) {
-        setError(
-          err?.response?.data?.message ||
-            err?.message ||
-            "Không thể tải chi tiết đơn hàng"
-        );
-      } finally {
-        setLoading(false);
-      }
+    if (productRes.status === "fulfilled") {
+      const data =
+        productRes.value?.content ||
+        productRes.value?.data?.content ||
+        [];
+      relatedProducts = data.slice(0, 2);
+    }
+
+    if (postRes.status === "fulfilled") {
+      const data =
+        postRes.value?.content ||
+        postRes.value?.data?.content ||
+        [];
+      guides = data.slice(0, 2);
+    }
+
+    return {
+      order,
+      relatedProducts,
+      guides,
     };
+  },
+  enabled: !!id,
+});
 
-    fetchOrder();
-  }, [id]);
+const order = orderDetailData.order;
+const relatedProducts = orderDetailData.relatedProducts;
+const guides = orderDetailData.guides;
+
 
   const currentStep = useMemo(() => {
     if (!order) return 1;
@@ -98,25 +109,22 @@ export default function OrderDetailPage() {
 
   const handleCancelOrder = async () => {
   const confirmed = window.confirm(
-  "🛑 Huỷ đơn hàng?\n\n" +
-  "Sau khi huỷ:\n" +
-  "• Đơn hàng sẽ chuyển sang trạng thái Đã huỷ\n" +
-  "• Bạn cần đặt lại nếu muốn mua sản phẩm này\n" +
-  "• Hệ thống sẽ hoàn lại tồn kho sản phẩm\n\n" +
-  "Bạn có chắc chắn muốn tiếp tục?"
-);
+    "🛑 Huỷ đơn hàng?\n\n" +
+      "Sau khi huỷ:\n" +
+      "• Đơn hàng sẽ chuyển sang trạng thái Đã huỷ\n" +
+      "• Bạn cần đặt lại nếu muốn mua sản phẩm này\n" +
+      "• Hệ thống sẽ hoàn lại tồn kho sản phẩm\n\n" +
+      "Bạn có chắc chắn muốn tiếp tục?"
+  );
 
-  if (!confirmCancel) return;
+  if (!confirmed) return;
 
   try {
     setCancelling(true);
 
     await orderApi.cancelOrder(order.orderId);
 
-    setOrder((prev) => ({
-      ...prev,
-      status: "CANCELLED",
-    }));
+    await refetch();
   } catch (err) {
     alert(err?.response?.data?.message || "Không thể hủy đơn hàng");
   } finally {
@@ -132,8 +140,14 @@ export default function OrderDetailPage() {
   }
 
   if (error || !order) {
-    return <div className={styles.errorBox}>{error || "Không tìm thấy đơn hàng"}</div>;
-  }
+  return (
+    <div className={styles.errorBox}>
+      {error?.response?.data?.message ||
+        error?.message ||
+        "Không tìm thấy đơn hàng"}
+    </div>
+  );
+}
 
   return (
     <main className={styles.page}>

@@ -1,4 +1,4 @@
-import { useEffect } from "react";
+import { useEffect, useRef } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import toast from "react-hot-toast";
 import { orderApi } from "../api";
@@ -21,8 +21,10 @@ const extractRealOrderId = (value) => {
 export default function PaymentResultPage() {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
-
+  const hasHandled = useRef(false);
   useEffect(() => {
+    if (hasHandled.current) return;
+  hasHandled.current = true;
     const handlePaymentResult = async () => {
       const resultCode = searchParams.get("resultCode");
       const momoOrderId = searchParams.get("orderId");

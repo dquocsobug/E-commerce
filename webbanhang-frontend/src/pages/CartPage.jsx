@@ -1,4 +1,5 @@
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
+import { useQuery } from "@tanstack/react-query";
 import { Link, useNavigate } from "react-router-dom";
 import { cartApi, productApi } from "../api";
 import { formatVND } from "../utils/format";
@@ -17,9 +18,7 @@ const getImageUrl = (url) => {
 export default function CartPage() {
   const navigate = useNavigate();
 
-  const [cart, setCart] = useState(null);
-  const [featured, setFeatured] = useState([]);
-  const [loading, setLoading] = useState(true);
+
   const [updatingId, setUpdatingId] = useState(null);
 
   const items = cart?.items || [];
@@ -35,10 +34,13 @@ export default function CartPage() {
     [items]
   );
 
-  const fetchCart = async () => {
-  try {
-    setLoading(true);
-
+  const {
+  data: cart = null,
+  isLoading,
+  refetch: refetchCart,
+} = useQuery({
+  queryKey: ["cart"],
+  queryFn: async () => {
     const res = await cartApi.getCart();
     const cartData = res?.data || res;
 
@@ -49,7 +51,8 @@ export default function CartPage() {
           const fullProduct = productRes?.data || productRes;
 
           const finalPrice =
-            fullProduct.discountedPrice && fullProduct.discountedPrice < fullProduct.price
+            fullProduct.discountedPrice &&
+            fullProduct.discountedPrice < fullProduct.price
               ? fullProduct.discountedPrice
               : fullProduct.price;
 
@@ -72,27 +75,22 @@ export default function CartPage() {
       0
     );
 
-    setCart({
+    return {
       ...cartData,
       items: enrichedItems,
       totalAmount: newTotalAmount,
-    });
-  } catch (err) {
-    console.error("Lỗi tải giỏ hàng:", err);
-  } finally {
-    setLoading(false);
-  }
-};
+    };
+  },
+});
 
-  const fetchFeatured = async () => {
-    try {
-      const res = await productApi.getFeatured?.();
-      const data = res?.data || res || [];
-      setFeatured(Array.isArray(data) ? data.slice(0, 3) : []);
-    } catch {
-      setFeatured([]);
-    }
-  };
+const { data: featured = [] } = useQuery({
+  queryKey: ["featured-products-cart"],
+  queryFn: async () => {
+    const res = await productApi.getFeatured?.();
+    const data = res?.data || res || [];
+    return Array.isArray(data) ? data.slice(0, 3) : [];
+  },
+});
 
   useEffect(() => {
     fetchCart();
@@ -105,7 +103,7 @@ export default function CartPage() {
     try {
       setUpdatingId(cartItemId);
       await cartApi.updateItem(cartItemId, nextQuantity);
-      await fetchCart();
+      await refetchCart();
     } catch (err) {
       console.error("Lỗi cập nhật số lượng:", err);
     } finally {
@@ -117,7 +115,7 @@ export default function CartPage() {
     try {
       setUpdatingId(cartItemId);
       await cartApi.removeItem(cartItemId);
-      await fetchCart();
+      await refetchCart();
     } catch (err) {
       console.error("Lỗi xóa sản phẩm:", err);
     } finally {
@@ -125,7 +123,7 @@ export default function CartPage() {
     }
   };
 
-  if (loading) {
+  if (isLoading) {
     return (
       <main className={styles.page}>
         <div className={styles.loading}>Đang tải giỏ hàng...</div>

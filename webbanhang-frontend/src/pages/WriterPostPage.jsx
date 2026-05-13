@@ -1,4 +1,5 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect } from "react";
+import { useQuery } from "@tanstack/react-query";
 import { Link, useNavigate } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
 import axiosClient from "../api/axiosClient";
@@ -21,39 +22,34 @@ const formatPrice = (n) => Number(n || 0).toLocaleString("vi-VN") + "₫";
 
 function ProductSearchModal({ onSelect, onClose, selectedIds }) {
   const [keyword, setKeyword] = useState("");
-  const [products, setProducts] = useState([]);
-  const [loading, setLoading] = useState(false);
-  const debounceRef = useRef(null);
+const [debouncedKeyword, setDebouncedKeyword] = useState("");
 
-  const fetchProducts = async (kw = "") => {
-    try {
-      setLoading(true);
-      const res = await axiosClient.get("/products", {
-        params: { keyword: kw || undefined, size: 12 },
-      });
+useEffect(() => {
+  const timer = setTimeout(() => {
+    setDebouncedKeyword(keyword);
+  }, 350);
 
-      const data = res?.data?.data || res?.data || res;
-      setProducts(data?.content || []);
-    } catch {
-      setProducts([]);
-    } finally {
-      setLoading(false);
-    }
-  };
+  return () => clearTimeout(timer);
+}, [keyword]);
 
-  useEffect(() => {
-    fetchProducts();
-  }, []);
+const { data: products = [], isLoading: loading } = useQuery({
+  queryKey: ["modal-products", debouncedKeyword],
+  queryFn: async () => {
+    const res = await axiosClient.get("/products", {
+      params: {
+        keyword: debouncedKeyword || undefined,
+        size: 12,
+      },
+    });
 
-  const handleKeywordChange = (e) => {
-    const val = e.target.value;
-    setKeyword(val);
+    const data = res?.data?.data || res?.data || res;
+    return data?.content || [];
+  },
+});
 
-    clearTimeout(debounceRef.current);
-    debounceRef.current = setTimeout(() => {
-      fetchProducts(val);
-    }, 350);
-  };
+const handleKeywordChange = (e) => {
+  setKeyword(e.target.value);
+};
 
   return (
     <div className={styles.modalOverlay} onClick={onClose}>

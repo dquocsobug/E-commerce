@@ -1,4 +1,5 @@
-import { useState, useEffect } from "react";
+import { useState } from "react";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link, useNavigate, useLocation } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
 import axiosClient from "../api/axiosClient";
@@ -160,17 +161,12 @@ export default function MyPostsPage() {
   const { user, logout } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
+  const queryClient = useQueryClient();
 
-  const [posts, setPosts] = useState([]);
-  const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState("ALL");
   const [page, setPage] = useState(0);
-  const [totalPages, setTotalPages] = useState(1);
-  const [totalElements, setTotalElements] = useState(0);
   const [deleteTarget, setDeleteTarget] = useState(null);
   const [toast, setToast] = useState(null);
-  const [myVouchers, setMyVouchers] = useState([]);
-
 
   const showToast = (message, type = "success") => {
     setToast({ message, type });
@@ -185,55 +181,64 @@ export default function MyPostsPage() {
   const initials = (user?.fullName || "U")
     .split(" ").map((w) => w[0]).slice(-2).join("").toUpperCase();
 
-  // GET /posts/my
-  useEffect(() => {
-    const fetchPosts = async () => {
-      try {
-        setLoading(true);
-        const params = { page, size: 9 };
-        if (activeTab !== "ALL") params.status = activeTab;
-        const [postRes, voucherRes] = await Promise.allSettled([
-  axiosClient.get("/posts/my", { params }),
-  axiosClient.get("/vouchers/my"),
-]);
+  const {
+  data: postsData = {
+    posts: [],
+    totalPages: 1,
+    totalElements: 0,
+    myVouchers: [],
+  },
+  isLoading: loading,
+} = useQuery({
+  queryKey: ["my-posts", activeTab, page],
+  queryFn: async () => {
+    const params = { page, size: 9 };
+    if (activeTab !== "ALL") params.status = activeTab;
 
-if (postRes.status === "fulfilled") {
-  const data =
-    postRes.value?.data?.data ||
-    postRes.value?.data ||
-    postRes.value;
+    const [postRes, voucherRes] = await Promise.allSettled([
+      axiosClient.get("/posts/my", { params }),
+      axiosClient.get("/vouchers/my"),
+    ]);
 
-  setPosts(data?.content || []);
-  setTotalPages(data?.totalPages || 1);
-  setTotalElements(data?.totalElements || 0);
-} else {
-  throw postRes.reason;
-}
+    if (postRes.status !== "fulfilled") {
+      throw postRes.reason;
+    }
 
-if (voucherRes.status === "fulfilled") {
-  const voucherData =
-    voucherRes.value?.data?.data ||
-    voucherRes.value?.data ||
-    voucherRes.value;
+    const data =
+      postRes.value?.data?.data ||
+      postRes.value?.data ||
+      postRes.value;
 
-  setMyVouchers(Array.isArray(voucherData) ? voucherData : []);
-}
-      } catch {
-        showToast("Không thể tải danh sách bài viết.", "error");
-      } finally {
-        setLoading(false);
-      }
+    let myVouchers = [];
+
+    if (voucherRes.status === "fulfilled") {
+      const voucherData =
+        voucherRes.value?.data?.data ||
+        voucherRes.value?.data ||
+        voucherRes.value;
+
+      myVouchers = Array.isArray(voucherData) ? voucherData : [];
+    }
+
+    return {
+      posts: data?.content || [],
+      totalPages: data?.totalPages || 1,
+      totalElements: data?.totalElements || 0,
+      myVouchers,
     };
-    fetchPosts();
-  }, [activeTab, page]);
+  },
+});
+
+const posts = postsData?.posts || [];
+const totalPages = postsData?.totalPages || 1;
+const totalElements = postsData?.totalElements || 0;
+const myVouchers = postsData?.myVouchers || [];
 
   // PATCH /posts/my/{postId}/submit
   const handleSubmit = async (post) => {
     try {
       await axiosClient.patch(`/posts/my/${post.postId}/submit`);
-      setPosts((prev) =>
-        prev.map((p) => p.postId === post.postId ? { ...p, status: "PENDING" } : p)
-      );
+      queryClient.invalidateQueries({ queryKey: ["my-posts"] });
       showToast(`Đã gửi duyệt bài viết "${post.title}".`);
     } catch {
       showToast("Gửi duyệt thất bại. Vui lòng thử lại.", "error");
@@ -254,8 +259,7 @@ if (voucherRes.status === "fulfilled") {
     if (!deleteTarget) return;
     try {
       await axiosClient.delete(`/posts/my/${deleteTarget.postId}`);
-      setPosts((prev) => prev.filter((p) => p.postId !== deleteTarget.postId));
-      setTotalElements((n) => n - 1);
+      queryClient.invalidateQueries({ queryKey: ["my-posts"] });
       showToast(`Đã xoá bài viết "${deleteTarget.title}".`);
     } catch {
       showToast("Xoá thất bại. Vui lòng thử lại.", "error");

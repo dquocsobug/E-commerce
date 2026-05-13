@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef } from "react";
+import { useQuery } from "@tanstack/react-query";
 import { Link, useNavigate, useLocation } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
 import axiosClient from "../api/axiosClient";
@@ -167,10 +168,6 @@ export default function CreatePostPage() {
   const navigate = useNavigate();
   const location = useLocation();
 
-  const [eligibleProductIds, setEligibleProductIds] = useState([]);
-const [checkingPermission, setCheckingPermission] = useState(true);
-const [permissionMessage, setPermissionMessage] = useState("");
-
   const [form, setForm] = useState({
   title: "",
   summary: "",
@@ -180,7 +177,6 @@ const [permissionMessage, setPermissionMessage] = useState("");
   const [products, setProducts] = useState([]); // [{product, note, displayOrder}]
   const [showProductModal, setShowProductModal] = useState(false);
   const [saving, setSaving] = useState(false);
-  const [submitAfterSave, setSubmitAfterSave] = useState(false);
   const [toast, setToast] = useState(null);
   const [errors, setErrors] = useState({});
 
@@ -197,75 +193,79 @@ const [permissionMessage, setPermissionMessage] = useState("");
   const initials = (user?.fullName || "U")
     .split(" ").map((w) => w[0]).slice(-2).join("").toUpperCase();
 
-    useEffect(() => {
-  const checkEligibleOrders = async () => {
-    try {
-      setCheckingPermission(true);
-      setPermissionMessage("");
+    const {
+  data: permissionData = {
+    eligibleProductIds: [],
+    permissionMessage: "",
+  },
+  isLoading: checkingPermission,
+} = useQuery({
+  queryKey: ["create-post-permission"],
+  queryFn: async () => {
+    const res = await axiosClient.get("/orders/my", {
+      params: { page: 0, size: 100 },
+    });
 
-      const res = await axiosClient.get("/orders/my", {
-        params: { page: 0, size: 100 },
-      });
+    const data = res?.data?.data || res?.data || res;
+    const orders = data?.content || [];
 
-      const data = res?.data?.data || res?.data || res;
-      const orders = data?.content || [];
+    const eligibleOrders = orders.filter(
+      (order) =>
+        order.status === "DELIVERED" &&
+        isAfter30Days(order.createdAt)
+    );
 
-      const eligibleOrders = orders.filter(
-        (order) =>
-          order.status === "DELIVERED" &&
-          isAfter30Days(order.createdAt)
-      );
-
-      if (eligibleOrders.length === 0) {
-        setEligibleProductIds([]);
-        setPermissionMessage(
-          "Bạn chỉ được viết bài sau khi mua hàng thành công và đơn hàng đã qua ít nhất 30 ngày."
-        );
-        return;
-      }
-
-      const detailResponses = await Promise.allSettled(
-        eligibleOrders.map((order) =>
-          axiosClient.get(`/orders/my/${order.orderId}`)
-        )
-      );
-
-      const productIds = [];
-
-      detailResponses.forEach((result) => {
-        if (result.status !== "fulfilled") return;
-
-        const detail =
-          result.value?.data?.data ||
-          result.value?.data ||
-          result.value;
-
-        detail?.orderDetails?.forEach((item) => {
-          const productId = item?.product?.productId;
-          if (productId) productIds.push(productId);
-        });
-      });
-
-      const uniqueIds = [...new Set(productIds)];
-      setEligibleProductIds(uniqueIds);
-
-      if (uniqueIds.length === 0) {
-        setPermissionMessage(
-          "Không tìm thấy sản phẩm đủ điều kiện để viết bài."
-        );
-      }
-    } catch {
-      setEligibleProductIds([]);
-      setPermissionMessage(
-        "Không thể kiểm tra điều kiện viết bài. Vui lòng đăng nhập lại hoặc thử sau."
-      );
-    } finally {
-      setCheckingPermission(false);
+    if (eligibleOrders.length === 0) {
+      return {
+        eligibleProductIds: [],
+        permissionMessage:
+          "Bạn chỉ được viết bài sau khi mua hàng thành công và đơn hàng đã qua ít nhất 30 ngày.",
+      };
     }
-  };
 
-  checkEligibleOrders();
-}, []);
+    const detailResponses = await Promise.allSettled(
+      eligibleOrders.map((order) =>
+        axiosClient.get(`/orders/my/${order.orderId}`)
+      )
+    );
+
+    const productIds = [];
+
+    detailResponses.forEach((result) => {
+      if (result.status !== "fulfilled") return;
+
+      const detail =
+        result.value?.data?.data ||
+        result.value?.data ||
+        result.value;
+
+      detail?.orderDetails?.forEach((item) => {
+        const productId = item?.product?.productId;
+        if (productId) productIds.push(productId);
+      });
+    });
+
+    const uniqueIds = [...new Set(productIds)];
+
+    if (uniqueIds.length === 0) {
+      return {
+        eligibleProductIds: [],
+        permissionMessage:
+          "Không tìm thấy sản phẩm đủ điều kiện để viết bài.",
+      };
+    }
+
+    return {
+      eligibleProductIds: uniqueIds,
+      permissionMessage: "",
+    };
+  },
+  retry: 1,
+});
+
+const eligibleProductIds = permissionData?.eligibleProductIds || [];
+const permissionMessage = permissionData?.permissionMessage || "";
+
 
   // Validation
   const validate = () => {

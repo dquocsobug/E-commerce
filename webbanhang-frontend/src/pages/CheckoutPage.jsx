@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
+import { useQuery } from "@tanstack/react-query";
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import { formatVND } from "../utils/format";
 import styles from "./CheckoutPage.module.css";
@@ -39,18 +40,15 @@ export default function CheckoutPage() {
 
   const directData = location.state || savedCheckoutState;
   const isDirect = directData?.mode === "DIRECT";
-  const [cart, setCart] = useState(null);
   const [savedItems, setSavedItems] = useState(
   savedCheckoutState?.items || []
 );
-  const [user, setUser] = useState(null);
   const [shippingMethod, setShippingMethod] = useState("FAST");
   const [paymentMethod, setPaymentMethod] = useState("COD");
   const [couponCode, setCouponCode] = useState("");
   const [appliedVoucher, setAppliedVoucher] = useState(null);
   const [voucherMessage, setVoucherMessage] = useState("");
   const [applyingVoucher, setApplyingVoucher] = useState(false);
-  const [loading, setLoading] = useState(true);
   const [placing, setPlacing] = useState(false);
   const [error, setError] = useState("");
 
@@ -88,25 +86,6 @@ useEffect(() => {
   }
 }, []);
   const orderCode = useMemo(() => `DH${Date.now()}`, []);
-
-  const items = isDirect
-  ? [
-      {
-        cartItemId: `direct-${directData.productId}`,
-        product: directData.product,
-        quantity: directData.quantity || 1,
-        subtotal:
-          Number(
-            directData.product?.discountedPrice &&
-              directData.product?.discountedPrice < directData.product?.price
-              ? directData.product.discountedPrice
-              : directData.product?.price || 0
-          ) * Number(directData.quantity || 1),
-      },
-    ]
-  : cart?.items?.length
-  ? cart.items
-  : savedItems;
 
   const subtotal = Number(
   items.reduce((sum, item) => sum + Number(item.subtotal || 0), 0)
@@ -154,79 +133,110 @@ const total = Math.max(subtotal + shippingFee - discountAmount, 0);
     ];
   }, [firstItem]);
 
-  useEffect(() => {
-    const fetchData = async () => {
-      try {
-        setLoading(true);
+  const {
+  data: checkoutData,
+  isLoading,
+  isError,
+} = useQuery({
+  
+  queryKey: ["checkout-data"],
+  queryFn: async () => {
+    const [cartRes, userRes] = await Promise.allSettled([
+      cartApi.getCart(),
+      userApi.getProfile(),
+    ]);
 
-        const [cartRes, userRes] = await Promise.allSettled([
-          cartApi.getCart(),
-          userApi.getProfile()
-        ]);
+    let cartData = null;
+    let userData = null;
 
-        if (cartRes.status === "fulfilled") {
-          const cartData = cartRes.value?.data || cartRes.value;
+    if (cartRes.status === "fulfilled") {
+      const rawCart = cartRes.value?.data || cartRes.value;
 
-          const enrichedItems = await Promise.all(
-            (cartData.items || []).map(async (item) => {
-              try {
-                const productRes = await productApi.getById(item.product.productId);
-                const fullProduct = productRes?.data || productRes;
+      const enrichedItems = await Promise.all(
+        (rawCart.items || []).map(async (item) => {
+          try {
+            const productRes = await productApi.getById(item.product.productId);
+            const fullProduct = productRes?.data || productRes;
 
-                const finalPrice =
-                  fullProduct.discountedPrice &&
-                  fullProduct.discountedPrice < fullProduct.price
-                    ? fullProduct.discountedPrice
-                    : fullProduct.price;
+            const finalPrice =
+              fullProduct.discountedPrice &&
+              fullProduct.discountedPrice < fullProduct.price
+                ? fullProduct.discountedPrice
+                : fullProduct.price;
 
-                return {
-                  ...item,
-                  product: {
-                    ...item.product,
-                    ...fullProduct,
-                  },
-                  subtotal: finalPrice * item.quantity,
-                };
-              } catch {
-                return item;
-              }
-            })
-          );
+            return {
+              ...item,
+              product: {
+                ...item.product,
+                ...fullProduct,
+              },
+              subtotal: finalPrice * item.quantity,
+            };
+          } catch {
+            return item;
+          }
+        })
+      );
 
-          const totalAmount = enrichedItems.reduce(
-            (sum, item) => sum + Number(item.subtotal || 0),
-            0
-          );
+      const totalAmount = enrichedItems.reduce(
+        (sum, item) => sum + Number(item.subtotal || 0),
+        0
+      );
 
-          setCart({
-            ...cartData,
-            items: enrichedItems,
-            totalAmount,
-          });
-        }
+      cartData = {
+        ...rawCart,
+        items: enrichedItems,
+        totalAmount,
+      };
+    }
 
-        if (userRes.status === "fulfilled") {
-          const userData = userRes.value?.data || userRes.value;
-          setUser(userData);
+    if (userRes.status === "fulfilled") {
+      userData = userRes.value?.data || userRes.value;
+    }
 
-          setForm((prev) => ({
-            ...prev,
-            fullName: userData?.fullName || "",
-            phone: userData?.phone || "",
-            email: userData?.email || "",
-            address: userData?.address || "",
-          }));
-        }
-      } catch (err) {
-        console.error("Lỗi tải checkout:", err);
-        setError("Không thể tải thông tin thanh toán");
-      } finally {
-        setLoading(false);
-      }
+     return {
+      cart: cartData,
+      user: userData,
     };
+  },
 
-    fetchData();
-  }, []);
+  staleTime: 30 * 1000,
+  gcTime: 5 * 60 * 1000,
+});
+
+const cart = checkoutData?.cart || null;
+const user = checkoutData?.user || null;
+
+const items = isDirect
+  ? [
+      {
+        cartItemId: `direct-${directData.productId}`,
+        product: directData.product,
+        quantity: directData.quantity || 1,
+        subtotal:
+          Number(
+            directData.product?.discountedPrice &&
+              directData.product?.discountedPrice < directData.product?.price
+              ? directData.product.discountedPrice
+              : directData.product?.price || 0
+          ) * Number(directData.quantity || 1),
+      },
+    ]
+  : cart?.items?.length
+  ? cart.items
+  : savedItems;
+
+useEffect(() => {
+  if (!user) return;
+
+  setForm((prev) => ({
+    ...prev,
+    fullName: prev.fullName || user?.fullName || "",
+    phone: prev.phone || user?.phone || "",
+    email: prev.email || user?.email || "",
+    address: prev.address || user?.address || "",
+  }));
+}, [user]);
 
   const handleChange = (e) => {
     setForm((prev) => ({
@@ -391,13 +401,25 @@ navigate("/orders", { replace: true });
     }
   };
 
-  if (loading) {
+  if (isLoading) {
     return (
       <main className={styles.page}>
         <div className={styles.loading}>Đang tải thông tin thanh toán...</div>
       </main>
     );
   }
+
+  if (isError) {
+  return (
+    <main className={styles.page}>
+      <div className={styles.empty}>
+        <h1>Không thể tải thông tin thanh toán</h1>
+        <p>Vui lòng thử lại sau.</p>
+        <Link to="/cart">Quay lại giỏ hàng</Link>
+      </div>
+    </main>
+  );
+}
 
   if (!items.length) {
     return (

@@ -1,4 +1,5 @@
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
+import { useQuery } from "@tanstack/react-query";
 import { Link, useSearchParams } from "react-router-dom";
 import { postApi, productApi } from "../api";
 import styles from "./PostListPage.module.css";
@@ -44,41 +45,32 @@ const isCustomerPost = (post) => {
 
 export default function PostListPage() {
   const [searchParams] = useSearchParams();
-const productId = searchParams.get("productId");
-  const [posts, setPosts] = useState([]);
-  const [products, setProducts] = useState([]);
+  const productId = searchParams.get("productId");
   const [authorFilter, setAuthorFilter] = useState("ALL");
   const [tagFilter, setTagFilter] = useState("ALL");
   const [sort, setSort] = useState("NEWEST");
 
-  useEffect(() => {
-    const fetchData = async () => {
-      try {
-        const [postRes, productRes] = await Promise.allSettled([
-          postApi.getAll({
-  page: 0,
-  size: 12,
-  productId: productId || undefined,
-}),
-          productApi.getAll({ page: 0, size: 6 }),
-        ]);
+  const { data: posts = [], isLoading: postsLoading } = useQuery({
+  queryKey: ["posts", productId],
+  queryFn: async () => {
+    const data = await postApi.getAll({
+      page: 0,
+      size: 12,
+      productId: productId || undefined,
+    });
 
-        if (postRes.status === "fulfilled") {
-          const data = postRes.value;
-          setPosts(data?.content || data?.data?.content || data?.data || []);
-        }
+    return data?.content || data?.data?.content || data?.data || [];
+  },
+});
 
-        if (productRes.status === "fulfilled") {
-          const data = productRes.value;
-          setProducts(data?.content || data?.data?.content || data?.data || []);
-        }
-      } catch (err) {
-        console.error("Lỗi tải bài viết:", err);
-      }
-    };
+const { data: products = [] } = useQuery({
+  queryKey: ["products-mentioned"],
+  queryFn: async () => {
+    const data = await productApi.getAll({ page: 0, size: 6 });
 
-    fetchData();
-  }, [productId]);
+    return data?.content || data?.data?.content || data?.data || [];
+  },
+});
 
   const spotlight = posts[0];
 
@@ -103,7 +95,13 @@ const productId = searchParams.get("productId");
 
   return result;
 }, [posts, spotlight, authorFilter, tagFilter, sort]);
-
+  if (postsLoading) {
+  return (
+    <main className={styles.page}>
+      <div className={styles.emptyBox}>Đang tải bài viết...</div>
+    </main>
+  );
+}
   return (
     <main className={styles.page}>
       <section className={styles.main}>

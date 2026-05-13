@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link, useNavigate, useLocation } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
 import axiosClient from "../api/axiosClient";
@@ -127,9 +128,8 @@ export default function ProfilePage() {
   const { user: authUser, logout, updateUser } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
+  const queryClient = useQueryClient();
 
-  const [profile, setProfile] = useState(null);
-  const [loading, setLoading] = useState(true);
   const [editing, setEditing] = useState(false);
   const [saving, setSaving] = useState(false);
   const [showPasswordModal, setShowPasswordModal] = useState(false);
@@ -151,27 +151,27 @@ export default function ProfilePage() {
     navigate("/login");
   };
 
-  // GET /users/me
+  const {
+  data: profile = null,
+  isLoading: loading,
+  isError,
+} = useQuery({
+  queryKey: ["profile"],
+  queryFn: async () => {
+    const res = await axiosClient.get("/users/me");
+    return res?.data?.data || res?.data || res;
+  },
+});
+
   useEffect(() => {
-    const fetchProfile = async () => {
-      try {
-        setLoading(true);
-        const res = await axiosClient.get("/users/me");
-        const data = res?.data?.data || res?.data || res;
-        setProfile(data);
-        setForm({
-          fullName: data.fullName || "",
-          phone: data.phone || "",
-          address: data.address || "",
-        });
-      } catch {
-        showToast("Không thể tải thông tin cá nhân.", "error");
-      } finally {
-        setLoading(false);
-      }
-    };
-    fetchProfile();
-  }, []);
+  if (!profile) return;
+
+  setForm({
+    fullName: profile.fullName || "",
+    phone: profile.phone || "",
+    address: profile.address || "",
+  });
+}, [profile]);
 
   const handleChange = (e) =>
     setForm((f) => ({ ...f, [e.target.name]: e.target.value }));
@@ -183,7 +183,7 @@ export default function ProfilePage() {
       setSaving(true);
       const res = await axiosClient.put("/users/me", form);
       const updated = res?.data?.data || res?.data || res;
-      setProfile(updated);
+      queryClient.setQueryData(["profile"], updated);
       updateUser({ ...authUser, ...updated });
       setEditing(false);
       showToast("Cập nhật thông tin thành công!");
@@ -207,7 +207,14 @@ export default function ProfilePage() {
     .split(" ").map((w) => w[0]).slice(-2).join("").toUpperCase();
 
   const currentUser = profile || authUser;
+  useEffect(() => {
+  if (!isError) return;
 
+  setToast({ message: "Không thể tải thông tin cá nhân.", type: "error" });
+
+  const timer = setTimeout(() => setToast(null), 3000);
+  return () => clearTimeout(timer);
+}, [isError]);
   return (
     <div className={styles.page}>
       {/* Toast */}

@@ -1,4 +1,5 @@
-import { createContext, useContext, useState, useEffect, useCallback } from "react";
+import { createContext, useContext } from "react";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { cartApi } from "../api";
 import { useAuth } from "./AuthContext";
 import toast from "react-hot-toast";
@@ -7,52 +8,57 @@ const CartContext = createContext(null);
 
 export const CartProvider = ({ children }) => {
   const { isAuthenticated } = useAuth();
-  const [cart, setCart] = useState(null);
-  const [cartLoading, setCartLoading] = useState(false);
+
 
   const cartItemCount = cart?.totalItems || 0;
   const cartTotal = cart?.totalAmount || 0;
 
-  const fetchCart = useCallback(async () => {
-    if (!isAuthenticated) {
-      setCart(null);
-      return;
-    }
-    setCartLoading(true);
-    try {
-      const data = await cartApi.getCart();
-      setCart(data);
-    } catch {
-      // silent fail
-    } finally {
-      setCartLoading(false);
-    }
-  }, [isAuthenticated]);
+  const queryClient = useQueryClient();
+
+const {
+  data: cart = null,
+  isLoading: cartLoading,
+  refetch: fetchCart,
+} = useQuery({
+  queryKey: ["cart"],
+  enabled: isAuthenticated,
+  queryFn: async () => {
+    return await cartApi.getCart();
+  },
+});
 
   useEffect(() => {
     fetchCart();
   }, [fetchCart]);
 
   const addToCart = async (productId, quantity = 1) => {
-    if (!isAuthenticated) {
-      toast.error("Vui lòng đăng nhập để thêm vào giỏ hàng.");
-      return false;
-    }
-    try {
-      const data = await cartApi.addItem(productId, quantity);
-      setCart(data);
-      toast.success("Đã thêm vào giỏ hàng!");
-      return true;
-    } catch (error) {
-      toast.error(error.message);
-      return false;
-    }
-  };
+  if (!isAuthenticated) {
+    toast.error("Vui lòng đăng nhập để thêm vào giỏ hàng.");
+    return false;
+  }
+
+  try {
+    await cartApi.addItem(productId, quantity);
+
+    await queryClient.invalidateQueries({
+      queryKey: ["cart"],
+    });
+
+    toast.success("Đã thêm vào giỏ hàng!");
+    return true;
+  } catch (error) {
+    toast.error(error.message);
+    return false;
+  }
+};
 
   const updateCartItem = async (cartItemId, quantity) => {
     try {
-      const data = await cartApi.updateItem(cartItemId, quantity);
-      setCart(data);
+      await cartApi.updateItem(cartItemId, quantity);
+
+await queryClient.invalidateQueries({
+  queryKey: ["cart"],
+});
     } catch (error) {
       toast.error(error.message);
     }
@@ -60,8 +66,11 @@ export const CartProvider = ({ children }) => {
 
   const removeCartItem = async (cartItemId) => {
     try {
-      const data = await cartApi.removeItem(cartItemId);
-      setCart(data);
+      await cartApi.removeItem(cartItemId);
+
+await queryClient.invalidateQueries({
+  queryKey: ["cart"],
+});
       toast.success("Đã xoá sản phẩm.");
     } catch (error) {
       toast.error(error.message);
@@ -71,7 +80,8 @@ export const CartProvider = ({ children }) => {
   const clearCart = async () => {
     try {
       await cartApi.clearCart();
-      setCart(null);
+
+queryClient.setQueryData(["cart"], null);
     } catch (error) {
       toast.error(error.message);
     }

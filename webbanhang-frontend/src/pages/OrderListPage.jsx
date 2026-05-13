@@ -1,5 +1,6 @@
-import { useEffect, useMemo, useState } from "react";
-import { Link, useNavigate } from "react-router-dom";
+import { useMemo, useState } from "react";
+import { useQuery } from "@tanstack/react-query";
+import { Link, useNavigate, useLocation } from "react-router-dom";
 import { orderApi } from "../api";
 import { formatVND } from "../utils/format";
 import styles from "./OrderListPage.module.css";
@@ -42,14 +43,12 @@ const getImageUrl = (url) => {
 
 
 export default function OrderListPage() {
-  const [orders, setOrders] = useState([]);
   const [activeStatus, setActiveStatus] = useState("ALL");
   const [page, setPage] = useState(0);
-  const [totalPages, setTotalPages] = useState(1);
-  const [orderDetailsMap, setOrderDetailsMap] = useState({});
   const { user: authUser, logout } = useAuth();
 const currentUser = authUser || {};
   const navigate = useNavigate();
+  const location = useLocation();
 
   const initials = (currentUser?.fullName || currentUser?.name || "U")
   .split(" ")
@@ -64,45 +63,51 @@ const currentUser = authUser || {};
     navigate("/login");
   };
 
-  useEffect(() => {
-  const fetchOrders = async () => {
-    try {
-      const res = await orderApi.getMyOrders({
-        page,
-        size: 6,
-        status: activeStatus === "ALL" ? undefined : activeStatus,
-      });
+  const {
+  data: orderListData = {
+    orders: [],
+    totalPages: 1,
+    orderDetailsMap: {},
+  },
+  isLoading,
+} = useQuery({
+  queryKey: ["my-orders", activeStatus, page],
+  queryFn: async () => {
+    const res = await orderApi.getMyOrders({
+      page,
+      size: 6,
+      status: activeStatus === "ALL" ? undefined : activeStatus,
+    });
 
-      const data = res?.data?.data || res?.data || res;
-      const list = data?.content || [];
+    const data = res?.data?.data || res?.data || res;
+    const list = data?.content || [];
 
-      setOrders(list);
-      setTotalPages(data?.totalPages || 1);
+    const detailPromises = list.map((o) =>
+      orderApi.getOrderById(o.orderId)
+    );
 
-      // 🔥 fetch detail từng order để lấy ảnh
-      const detailPromises = list.map((o) =>
-        orderApi.getOrderById(o.orderId)
-      );
+    const results = await Promise.allSettled(detailPromises);
 
-      const results = await Promise.allSettled(detailPromises);
+    const map = {};
+    results.forEach((r, i) => {
+      if (r.status === "fulfilled") {
+        const d = r.value?.data || r.value;
+        map[list[i].orderId] = d;
+      }
+    });
 
-      const map = {};
-      results.forEach((r, i) => {
-        if (r.status === "fulfilled") {
-          const d = r.value?.data || r.value;
-          map[list[i].orderId] = d;
-        }
-      });
+    return {
+      orders: list,
+      totalPages: data?.totalPages || 1,
+      orderDetailsMap: map,
+    };
+  },
+  keepPreviousData: true,
+});
 
-      setOrderDetailsMap(map);
-
-    } catch (err) {
-      console.error("Lỗi tải đơn hàng:", err);
-    }
-  };
-
-  fetchOrders();
-}, [activeStatus, page]);
+const orders = orderListData.orders;
+const totalPages = orderListData.totalPages;
+const orderDetailsMap = orderListData.orderDetailsMap;
 
   const filteredOrders = useMemo(() => {
     if (activeStatus === "ALL") return orders;
@@ -178,7 +183,9 @@ const currentUser = authUser || {};
         </header>
 
         <div className={styles.orderList}>
-          {filteredOrders.length === 0 ? (
+  {isLoading ? (
+    <div className={styles.empty}>Đang tải đơn hàng...</div>
+  ) : filteredOrders.length === 0 ? (
             <div className={styles.empty}>Bạn chưa có đơn hàng nào.</div>
           ) : (
             filteredOrders.map((order) => (
