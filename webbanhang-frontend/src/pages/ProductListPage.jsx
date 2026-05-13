@@ -1,8 +1,9 @@
-import { useState, useEffect, useCallback, useRef } from "react";
+import { useState, useEffect, useRef } from "react";
 import { Link, useSearchParams } from "react-router-dom";
 import axiosClient from "../api/axiosClient";
 import { useCart } from "../context/CartContext";
 import styles from "./ProductsListPage.module.css";
+import { useQuery, keepPreviousData } from "@tanstack/react-query";
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 const formatPrice = (n) => n?.toLocaleString("vi-VN") + "₫";
@@ -261,27 +262,69 @@ export default function ProductsPage() {
   minutes: 37,
   seconds: 16,
 });
-  const [products, setProducts] = useState([]);
-  const [categories, setCategories] = useState([]);
-  const [totalPages, setTotalPages] = useState(0);
-  const [totalElements, setTotalElements] = useState(0);
-  const [loading, setLoading] = useState(true);
-  const [catLoading, setCatLoading] = useState(true);
-
   const [sidebarOpen, setSidebarOpen] = useState(false);
-  const [inputValue, setInputValue] = useState(keyword);
-  const debounceRef = useRef(null);
+const [inputValue, setInputValue] = useState(keyword);
+const debounceRef = useRef(null);
+const {
+  data: categoriesData = [],
+  isLoading: catLoading,
+} = useQuery({
+  queryKey: ["categories"],
+  queryFn: async () => {
+    const res = await axiosClient.get("/categories");
+    return res?.data?.data || res?.data || res || [];
+  },
+  staleTime: 1000 * 60 * 30,
+});
 
-  useEffect(() => {
-    axiosClient
-      .get("/categories")
-      .then((res) => {
-        const data = res?.data?.data || res?.data || res;
-        setCategories(Array.isArray(data) ? data : []);
-      })
-      .catch(() => setCategories([]))
-      .finally(() => setCatLoading(false));
-  }, []);
+const categories = categoriesData;
+
+const {
+  data: productData,
+  isLoading,
+  isFetching,
+} = useQuery({
+  queryKey: [
+    "products",
+    page,
+    keyword,
+    selectedCategories,
+    priceRange,
+    sort,
+  ],
+
+  queryFn: async () => {
+    const params = { page, size: 12 };
+
+    if (keyword) params.keyword = keyword;
+
+    if (selectedCategories.length === 1) {
+      params.categoryId = selectedCategories[0];
+    }
+
+    if (priceRange[0] > PRICE_MIN) {
+      params.minPrice = priceRange[0];
+    }
+
+    if (priceRange[1] < PRICE_MAX) {
+      params.maxPrice = priceRange[1];
+    }
+
+    if (sort) params.sort = sort;
+
+    const res = await axiosClient.get("/products", { params });
+
+    return res?.data?.data || res?.data || res;
+  },
+
+  placeholderData: (previousData) => previousData,
+});
+
+const products = productData?.content || [];
+const totalPages = productData?.totalPages || 0;
+const totalElements = productData?.totalElements || 0;
+const loading = isLoading;
+
 
   useEffect(() => {
   const timer = setInterval(() => {
@@ -314,36 +357,7 @@ export default function ProductsPage() {
   return () => clearInterval(timer);
 }, []);
 
-  const fetchProducts = useCallback(async () => {
-    try {
-      setLoading(true);
 
-      const params = { page, size: 12 };
-
-      if (keyword) params.keyword = keyword;
-      if (selectedCategories.length === 1) {
-        params.categoryId = selectedCategories[0];
-      }
-      if (priceRange[0] > PRICE_MIN) params.minPrice = priceRange[0];
-      if (priceRange[1] < PRICE_MAX) params.maxPrice = priceRange[1];
-      if (sort) params.sort = sort;
-
-      const res = await axiosClient.get("/products", { params });
-      const data = res?.data?.data || res?.data || res;
-
-      setProducts(data?.content || []);
-      setTotalPages(data?.totalPages || 0);
-      setTotalElements(data?.totalElements || 0);
-    } catch {
-      setProducts([]);
-    } finally {
-      setLoading(false);
-    }
-  }, [keyword, selectedCategories, priceRange, sort, page]);
-
-  useEffect(() => {
-    fetchProducts();
-  }, [fetchProducts]);
 
   useEffect(() => {
     const p = {};
