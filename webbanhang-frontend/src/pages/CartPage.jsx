@@ -6,96 +6,93 @@ import { formatVND } from "../utils/format";
 import styles from "./CartPage.module.css";
 
 const getImageUrl = (url) => {
-  if (!url) return "/images/placeholder.png"; // fallback nếu null
-
-  // Nếu backend trả full link thì dùng luôn
+  if (!url) return "/images/placeholder.png";
   if (url.startsWith("http")) return url;
-
-  // Nếu bạn dùng public/images
   return `/images/${url}`;
 };
 
 export default function CartPage() {
   const navigate = useNavigate();
-
-
   const [updatingId, setUpdatingId] = useState(null);
 
+  const {
+    data: cart = null,
+    isLoading,
+    refetch: refetchCart,
+  } = useQuery({
+    queryKey: ["cart"],
+    queryFn: async () => {
+      const res = await cartApi.getCart();
+      const cartData = res?.data || res;
+
+      const enrichedItems = await Promise.all(
+        (cartData.items || []).map(async (item) => {
+          try {
+            const productRes = await productApi.getById(item.product.productId);
+            const fullProduct = productRes?.data || productRes;
+
+            const finalPrice =
+              fullProduct.discountedPrice &&
+              fullProduct.discountedPrice < fullProduct.price
+                ? fullProduct.discountedPrice
+                : fullProduct.price;
+
+            return {
+              ...item,
+              product: {
+                ...item.product,
+                ...fullProduct,
+              },
+              subtotal: finalPrice * item.quantity,
+            };
+          } catch {
+            return item;
+          }
+        })
+      );
+
+      const newTotalAmount = enrichedItems.reduce(
+        (sum, item) => sum + Number(item.subtotal || 0),
+        0
+      );
+
+      return {
+        ...cartData,
+        items: enrichedItems,
+        totalAmount: newTotalAmount,
+      };
+    },
+  });
+
+  const { data: featured = [] } = useQuery({
+    queryKey: ["featured-products-cart"],
+    queryFn: async () => {
+      const res = await productApi.getFeatured?.();
+      const data = res?.data || res || [];
+      return Array.isArray(data) ? data.slice(0, 3) : [];
+    },
+  });
+
   const items = cart?.items || [];
-  const totalItems = cart?.totalItems || items.reduce((sum, i) => sum + i.quantity, 0);
-  const totalAmount = cart?.totalAmount || items.reduce((sum, i) => sum + i.subtotal, 0);
+
+  const totalItems =
+    cart?.totalItems || items.reduce((sum, i) => sum + i.quantity, 0);
+
+  const totalAmount =
+    cart?.totalAmount || items.reduce((sum, i) => sum + i.subtotal, 0);
 
   const freeShipTarget = 6600000;
   const remainForFreeShip = Math.max(0, freeShipTarget - totalAmount);
-  const progress = Math.min(100, Math.round((totalAmount / freeShipTarget) * 100));
+
+  const progress = Math.min(
+    100,
+    Math.round((totalAmount / freeShipTarget) * 100)
+  );
 
   const inStockItems = useMemo(
     () => items.filter((item) => item.product?.stock > 0),
     [items]
   );
-
-  const {
-  data: cart = null,
-  isLoading,
-  refetch: refetchCart,
-} = useQuery({
-  queryKey: ["cart"],
-  queryFn: async () => {
-    const res = await cartApi.getCart();
-    const cartData = res?.data || res;
-
-    const enrichedItems = await Promise.all(
-      (cartData.items || []).map(async (item) => {
-        try {
-          const productRes = await productApi.getById(item.product.productId);
-          const fullProduct = productRes?.data || productRes;
-
-          const finalPrice =
-            fullProduct.discountedPrice &&
-            fullProduct.discountedPrice < fullProduct.price
-              ? fullProduct.discountedPrice
-              : fullProduct.price;
-
-          return {
-            ...item,
-            product: {
-              ...item.product,
-              ...fullProduct,
-            },
-            subtotal: finalPrice * item.quantity,
-          };
-        } catch {
-          return item;
-        }
-      })
-    );
-
-    const newTotalAmount = enrichedItems.reduce(
-      (sum, item) => sum + Number(item.subtotal || 0),
-      0
-    );
-
-    return {
-      ...cartData,
-      items: enrichedItems,
-      totalAmount: newTotalAmount,
-    };
-  },
-});
-
-const { data: featured = [] } = useQuery({
-  queryKey: ["featured-products-cart"],
-  queryFn: async () => {
-    const res = await productApi.getFeatured?.();
-    const data = res?.data || res || [];
-    return Array.isArray(data) ? data.slice(0, 3) : [];
-  },
-});
-
-  useEffect(() => {
-    fetchCart();
-    fetchFeatured();
-  }, []);
 
   const handleUpdateQuantity = async (cartItemId, nextQuantity) => {
     if (nextQuantity < 1) return;
