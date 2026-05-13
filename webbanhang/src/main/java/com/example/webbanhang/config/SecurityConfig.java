@@ -169,6 +169,9 @@ public class SecurityConfig {
 
                         .requestMatchers(HttpMethod.POST, "/ai/chat").permitAll()
 
+                        .requestMatchers(HttpMethod.GET, "/actuator/health").permitAll()
+                        .requestMatchers(HttpMethod.GET, "/actuator/health/**").permitAll()
+                        
                         .anyRequest().authenticated()
                 )
 
