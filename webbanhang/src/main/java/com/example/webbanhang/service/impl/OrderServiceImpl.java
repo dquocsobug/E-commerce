@@ -23,7 +23,8 @@ import org.springframework.util.StringUtils;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
-import java.util.List;
+import java.util.*;
+import java.util.stream.Collectors;
 
 @Slf4j
 @Service
@@ -40,24 +41,32 @@ public class OrderServiceImpl implements OrderService {
     private final VoucherService voucherService;
 
     private OrderResponse toResponse(Order order) {
-        List<OrderDetail> details = orderDetailRepository
-                .findByOrderIdWithProduct(order.getOrderId());
+        List<OrderDetail> details = orderDetailRepository.findByOrderIdWithProduct(order.getOrderId());
 
+        Map<Integer, String> mainImageMap = getMainImageMap(details);
+
+        return toResponse(order, details, mainImageMap);
+    }
+
+    private OrderResponse toResponse(
+            Order order,
+            List<OrderDetail> details,
+            Map<Integer, String> mainImageMap
+    ) {
         List<OrderDetailResponse> detailResponses = details.stream().map(d -> {
             Product product = d.getProduct();
-
-            String mainImg = productImageRepository
-                    .findByProductProductIdAndIsMainTrue(product.getProductId())
-                    .map(ProductImage::getImageUrl)
-                    .orElse(null);
 
             ProductSummaryResponse productSummary = ProductSummaryResponse.builder()
                     .productId(product.getProductId())
                     .productName(product.getProductName())
                     .price(d.getUnitPrice())
                     .stock(product.getStock())
-                    .mainImageUrl(mainImg)
-                    .categoryName(product.getCategory().getCategoryName())
+                    .mainImageUrl(mainImageMap.get(product.getProductId()))
+                    .categoryName(
+                            product.getCategory() != null
+                                    ? product.getCategory().getCategoryName()
+                                    : null
+                    )
                     .build();
 
             return OrderDetailResponse.builder()
@@ -95,9 +104,7 @@ public class OrderServiceImpl implements OrderService {
                 .build();
     }
 
-    private OrderSummaryResponse toSummaryResponse(Order order) {
-        int itemCount = orderDetailRepository.findByOrderOrderId(order.getOrderId()).size();
-
+    private OrderSummaryResponse toSummaryResponse(Order order, int itemCount) {
         return OrderSummaryResponse.builder()
                 .orderId(order.getOrderId())
                 .userId(order.getUser().getUserId())
@@ -112,10 +119,41 @@ public class OrderServiceImpl implements OrderService {
                 .build();
     }
 
+    private Map<Integer, List<OrderDetail>> getDetailsMap(List<Integer> orderIds) {
+        if (orderIds == null || orderIds.isEmpty()) {
+            return Collections.emptyMap();
+        }
+
+        List<OrderDetail> details = orderDetailRepository.findByOrderIdsWithProduct(orderIds);
+
+        return details.stream()
+                .collect(Collectors.groupingBy(d -> d.getOrder().getOrderId()));
+    }
+
+    private Map<Integer, String> getMainImageMap(List<OrderDetail> details) {
+        List<Integer> productIds = details.stream()
+                .map(OrderDetail::getProduct)
+                .filter(Objects::nonNull)
+                .map(Product::getProductId)
+                .distinct()
+                .toList();
+
+        if (productIds.isEmpty()) {
+            return Collections.emptyMap();
+        }
+
+        return productImageRepository.findMainImagesByProductIds(productIds)
+                .stream()
+                .collect(Collectors.toMap(
+                        img -> img.getProduct().getProductId(),
+                        ProductImage::getImageUrl,
+                        (oldValue, newValue) -> oldValue
+                ));
+    }
+
     @Transactional
     @Override
     public OrderResponse placeDirectOrder(Integer userId, DirectOrderRequest request) {
-
         User user = userRepository.findById(userId)
                 .orElseThrow(() -> new ResourceNotFoundException("User", userId));
 
@@ -128,26 +166,12 @@ public class OrderServiceImpl implements OrderService {
             throw new BadRequestException("Số lượng sản phẩm không hợp lệ");
         }
 
-        String paymentMethod = request.getPaymentMethod();
-
-        if (!StringUtils.hasText(paymentMethod)) {
-            throw new BadRequestException("Vui lòng chọn phương thức thanh toán");
-        }
-
-        paymentMethod = paymentMethod.trim().toUpperCase();
-
-        if (!paymentMethod.equals("COD")
-                && !paymentMethod.equals("MOMO")
-                && !paymentMethod.equals("BANK_TRANSFER")) {
-            throw new BadRequestException("Phương thức thanh toán không hợp lệ: " + paymentMethod);
-        }
+        String paymentMethod = normalizePaymentMethod(request.getPaymentMethod());
 
         int updated = productRepository.decreaseStock(product.getProductId(), quantity);
 
         if (updated == 0) {
-            throw new BadRequestException(
-                    "Sản phẩm '" + product.getProductName() + "' không đủ tồn kho"
-            );
+            throw new BadRequestException("Sản phẩm '" + product.getProductName() + "' không đủ tồn kho");
         }
 
         BigDecimal unitPrice = product.getPrice();
@@ -157,14 +181,8 @@ public class OrderServiceImpl implements OrderService {
         BigDecimal finalAmount = rawTotal;
 
         if (StringUtils.hasText(request.getVoucherCode())) {
-            discountAmount = voucherService.calculateDiscount(
-                    userId,
-                    request.getVoucherCode(),
-                    rawTotal
-            );
-
+            discountAmount = voucherService.calculateDiscount(userId, request.getVoucherCode(), rawTotal);
             finalAmount = rawTotal.subtract(discountAmount).max(BigDecimal.ZERO);
-
             voucherService.markVoucherUsed(userId, request.getVoucherCode());
         }
 
@@ -197,12 +215,9 @@ public class OrderServiceImpl implements OrderService {
         return toResponse(order);
     }
 
-
-
     @Override
     @Transactional
     public OrderResponse placeOrder(Integer userId, PlaceOrderRequest request) {
-
         Cart cart = cartRepository.findByUserIdWithItems(userId)
                 .orElseThrow(() -> new ResourceNotFoundException("Cart của user", userId));
 
@@ -212,29 +227,15 @@ public class OrderServiceImpl implements OrderService {
 
         User user = userRepository.findById(userId)
                 .orElseThrow(() -> new ResourceNotFoundException("User", userId));
-        String paymentMethod = request.getPaymentMethod();
 
-        if (!StringUtils.hasText(paymentMethod)) {
-            throw new BadRequestException("Vui lòng chọn phương thức thanh toán");
-        }
+        String paymentMethod = normalizePaymentMethod(request.getPaymentMethod());
 
-        paymentMethod = paymentMethod.trim().toUpperCase();
-
-        log.info("[Order] paymentMethod received='{}', normalized='{}'",
-                request.getPaymentMethod(),
-                paymentMethod);
-
-        if (!paymentMethod.equals("COD")
-                && !paymentMethod.equals("MOMO")
-                && !paymentMethod.equals("BANK_TRANSFER")) {
-            throw new BadRequestException("Phương thức thanh toán không hợp lệ: " + paymentMethod);
-        }
         Order order = Order.builder()
                 .user(user)
                 .receiverName(request.getReceiverName())
                 .receiverPhone(request.getReceiverPhone())
                 .shippingAddress(request.getShippingAddress())
-                .paymentMethod(request.getPaymentMethod().trim().toUpperCase())
+                .paymentMethod(paymentMethod)
                 .paymentStatus(PaymentStatus.UNPAID)
                 .status(OrderStatus.PENDING)
                 .note(request.getNote())
@@ -242,10 +243,11 @@ public class OrderServiceImpl implements OrderService {
                 .discountAmount(BigDecimal.ZERO)
                 .finalAmount(BigDecimal.ZERO)
                 .build();
-        log.info("[Order] paymentMethod received = '{}'", request.getPaymentMethod());
+
         orderRepository.save(order);
 
         BigDecimal rawTotal = BigDecimal.ZERO;
+        List<OrderDetail> details = new ArrayList<>();
 
         for (CartItem cartItem : cart.getCartItems()) {
             Product product = cartItem.getProduct();
@@ -258,39 +260,30 @@ public class OrderServiceImpl implements OrderService {
             int updated = productRepository.decreaseStock(product.getProductId(), quantity);
 
             if (updated == 0) {
-                throw new BadRequestException(
-                        "Sản phẩm '" + product.getProductName() + "' không đủ tồn kho"
-                );
+                throw new BadRequestException("Sản phẩm '" + product.getProductName() + "' không đủ tồn kho");
             }
 
             BigDecimal unitPrice = product.getPrice();
             BigDecimal subtotal = unitPrice.multiply(BigDecimal.valueOf(quantity));
-
             rawTotal = rawTotal.add(subtotal);
 
-            OrderDetail detail = OrderDetail.builder()
+            details.add(OrderDetail.builder()
                     .order(order)
                     .product(product)
                     .quantity(quantity)
                     .unitPrice(unitPrice)
                     .subtotal(subtotal)
-                    .build();
-
-            orderDetailRepository.save(detail);
+                    .build());
         }
+
+        orderDetailRepository.saveAll(details);
 
         BigDecimal discountAmount = BigDecimal.ZERO;
         BigDecimal finalAmount = rawTotal;
 
         if (StringUtils.hasText(request.getVoucherCode())) {
-            discountAmount = voucherService.calculateDiscount(
-                    userId,
-                    request.getVoucherCode(),
-                    rawTotal
-            );
-
+            discountAmount = voucherService.calculateDiscount(userId, request.getVoucherCode(), rawTotal);
             finalAmount = rawTotal.subtract(discountAmount).max(BigDecimal.ZERO);
-
             voucherService.markVoucherUsed(userId, request.getVoucherCode());
         }
 
@@ -299,45 +292,26 @@ public class OrderServiceImpl implements OrderService {
         order.setFinalAmount(finalAmount);
 
         orderRepository.save(order);
-
         cartItemRepository.deleteAllByCartId(cart.getCartId());
 
         log.info("[Order] User {} đặt hàng thành công, orderId={}, rawTotal={}, discount={}, final={}",
-                userId,
-                order.getOrderId(),
-                rawTotal,
-                discountAmount,
-                finalAmount
-        );
+                userId, order.getOrderId(), rawTotal, discountAmount, finalAmount);
 
         return toResponse(order);
     }
+
     @Override
     @Transactional
     public OrderResponse markMyOrderAsPaid(Integer userId, Integer orderId) {
-
-        log.info("[MOMO] Start update payment: userId={}, orderId={}",
-                userId,
-                orderId
-        );
-
         Order order = orderRepository.findByIdWithDetails(orderId)
                 .orElseThrow(() -> new ResourceNotFoundException("Order", orderId));
-
-        log.info("[MOMO] Found order: paymentMethod={}, paymentStatus={}, status={}",
-                order.getPaymentMethod(),
-                order.getPaymentStatus(),
-                order.getStatus()
-        );
 
         if (!order.getUser().getUserId().equals(userId)) {
             throw new ForbiddenException("Bạn không có quyền cập nhật đơn hàng này");
         }
 
         if (!"MOMO".equalsIgnoreCase(order.getPaymentMethod())) {
-            throw new BadRequestException(
-                    "Chỉ đơn hàng MoMo mới được cập nhật thanh toán theo cách này"
-            );
+            throw new BadRequestException("Chỉ đơn hàng MoMo mới được cập nhật thanh toán theo cách này");
         }
 
         if (order.getPaymentStatus() == PaymentStatus.PAID) {
@@ -354,22 +328,30 @@ public class OrderServiceImpl implements OrderService {
 
         Order savedOrder = orderRepository.saveAndFlush(order);
 
-        log.info("[MOMO] Updated success: orderId={}, paymentStatus={}, status={}",
-                savedOrder.getOrderId(),
-                savedOrder.getPaymentStatus(),
-                savedOrder.getStatus()
-        );
-
         return toResponse(savedOrder);
     }
+
     @Override
     @Transactional(readOnly = true)
     public PageResponse<OrderSummaryResponse> getMyOrders(Integer userId, Pageable pageable) {
         Page<Order> page = orderRepository.findByUserUserId(userId, pageable);
 
+        List<Integer> orderIds = page.getContent()
+                .stream()
+                .map(Order::getOrderId)
+                .toList();
+
+        Map<Integer, List<OrderDetail>> detailsMap = getDetailsMap(orderIds);
+
         List<OrderSummaryResponse> content = page.getContent()
                 .stream()
-                .map(this::toSummaryResponse)
+                .map(order -> {
+                    int itemCount = detailsMap
+                            .getOrDefault(order.getOrderId(), Collections.emptyList())
+                            .size();
+
+                    return toSummaryResponse(order, itemCount);
+                })
                 .toList();
 
         return PageResponse.of(page, content);
@@ -403,12 +385,10 @@ public class OrderServiceImpl implements OrderService {
         }
 
         if (order.getPaymentStatus() == PaymentStatus.PAID) {
-            throw new BadRequestException(
-                    "Đơn hàng đã thanh toán, vui lòng liên hệ hỗ trợ để được xử lý hoàn tiền"
-            );
+            throw new BadRequestException("Đơn hàng đã thanh toán, vui lòng liên hệ hỗ trợ để được xử lý hoàn tiền");
         }
 
-        List<OrderDetail> details = orderDetailRepository.findByOrderOrderId(orderId);
+        List<OrderDetail> details = orderDetailRepository.findByOrderIdWithProduct(orderId);
 
         details.forEach(detail ->
                 productRepository.increaseStock(
@@ -436,17 +416,24 @@ public class OrderServiceImpl implements OrderService {
             LocalDateTime toDate,
             Pageable pageable
     ) {
-        Page<Order> page = orderRepository.findWithFilters(
-                userId,
-                status,
-                fromDate,
-                toDate,
-                pageable
-        );
+        Page<Order> page = orderRepository.findWithFilters(userId, status, fromDate, toDate, pageable);
+
+        List<Integer> orderIds = page.getContent()
+                .stream()
+                .map(Order::getOrderId)
+                .toList();
+
+        Map<Integer, List<OrderDetail>> detailsMap = getDetailsMap(orderIds);
 
         List<OrderSummaryResponse> content = page.getContent()
                 .stream()
-                .map(this::toSummaryResponse)
+                .map(order -> {
+                    int itemCount = detailsMap
+                            .getOrDefault(order.getOrderId(), Collections.emptyList())
+                            .size();
+
+                    return toSummaryResponse(order, itemCount);
+                })
                 .toList();
 
         return PageResponse.of(page, content);
@@ -472,7 +459,7 @@ public class OrderServiceImpl implements OrderService {
         if (request.getStatus() == OrderStatus.CANCELLED
                 && order.getStatus() != OrderStatus.DELIVERED) {
 
-            List<OrderDetail> details = orderDetailRepository.findByOrderOrderId(orderId);
+            List<OrderDetail> details = orderDetailRepository.findByOrderIdWithProduct(orderId);
 
             details.forEach(detail ->
                     productRepository.increaseStock(
@@ -499,6 +486,22 @@ public class OrderServiceImpl implements OrderService {
         log.info("[Order] Admin cập nhật orderId={} -> status={}", orderId, request.getStatus());
 
         return toResponse(order);
+    }
+
+    private String normalizePaymentMethod(String paymentMethod) {
+        if (!StringUtils.hasText(paymentMethod)) {
+            throw new BadRequestException("Vui lòng chọn phương thức thanh toán");
+        }
+
+        String normalized = paymentMethod.trim().toUpperCase();
+
+        if (!normalized.equals("COD")
+                && !normalized.equals("MOMO")
+                && !normalized.equals("BANK_TRANSFER")) {
+            throw new BadRequestException("Phương thức thanh toán không hợp lệ: " + normalized);
+        }
+
+        return normalized;
     }
 
     private void validateStatusTransition(OrderStatus current, OrderStatus next) {

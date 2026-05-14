@@ -25,14 +25,39 @@ public interface ProductPromotionRepository extends JpaRepository<ProductPromoti
 
     List<ProductPromotion> findByProductProductId(Integer productId);
 
+    List<ProductPromotion> findByProductProductIdIn(List<Integer> productIds);
+
     List<ProductPromotion> findByPromotionPromotionId(Integer promotionId);
+
+    @Query("""
+        SELECT pp
+        FROM ProductPromotion pp
+        LEFT JOIN FETCH pp.product p
+        LEFT JOIN FETCH p.category c
+        WHERE pp.promotion.promotionId = :promotionId
+    """)
+    List<ProductPromotion> findByPromotionIdWithProduct(
+            @Param("promotionId") Integer promotionId
+    );
+
+    @Query("""
+        SELECT pp
+        FROM ProductPromotion pp
+        LEFT JOIN FETCH pp.promotion pr
+        LEFT JOIN FETCH pp.product p
+        LEFT JOIN FETCH p.category c
+        WHERE pp.promotion.promotionId IN :promotionIds
+    """)
+    List<ProductPromotion> findByPromotionIdsWithProduct(
+            @Param("promotionIds") List<Integer> promotionIds
+    );
 
     @Modifying
     @Query("""
         DELETE FROM ProductPromotion pp
         WHERE pp.product.productId = :productId
           AND pp.promotion.promotionId = :promotionId
-        """)
+    """)
     void deleteByProductIdAndPromotionId(
             @Param("productId") Integer productId,
             @Param("promotionId") Integer promotionId

@@ -23,6 +23,8 @@ public interface UserRepository extends JpaRepository<User, Integer> {
 
     List<User> findByRole(Role role);
 
+    Optional<User> findFirstByRole(Role role);
+
     Page<User> findByRoleOrderByCreatedAtDesc(Role role, Pageable pageable);
 
     @Query("""

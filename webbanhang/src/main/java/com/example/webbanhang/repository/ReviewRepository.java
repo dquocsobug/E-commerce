@@ -49,4 +49,52 @@ public interface ReviewRepository extends JpaRepository<Review, Integer> {
     List<Object[]> countByRatingGrouped(@Param("productId") Integer productId);
 
     long countByProductProductId(Integer productId);
+
+    @Query("""
+    SELECT r
+    FROM Review r
+    LEFT JOIN FETCH r.user u
+    LEFT JOIN FETCH r.product p
+    WHERE r.reviewId = :reviewId
+""")
+    Optional<Review> findByIdWithUserAndProduct(@Param("reviewId") Integer reviewId);
+
+    @Query(
+            value = """
+        SELECT r
+        FROM Review r
+        LEFT JOIN FETCH r.user u
+        LEFT JOIN FETCH r.product p
+        WHERE r.product.productId = :productId
+    """,
+            countQuery = """
+        SELECT COUNT(r)
+        FROM Review r
+        WHERE r.product.productId = :productId
+    """
+    )
+    Page<Review> findByProductProductIdWithUserAndProduct(
+            @Param("productId") Integer productId,
+            Pageable pageable
+    );
+
+    @Query(
+            value = """
+        SELECT r
+        FROM Review r
+        LEFT JOIN FETCH r.user u
+        LEFT JOIN FETCH r.product p
+        WHERE r.user.userId = :userId
+        ORDER BY r.createdAt DESC
+    """,
+            countQuery = """
+        SELECT COUNT(r)
+        FROM Review r
+        WHERE r.user.userId = :userId
+    """
+    )
+    Page<Review> findByUserUserIdWithUserAndProduct(
+            @Param("userId") Integer userId,
+            Pageable pageable
+    );
 }

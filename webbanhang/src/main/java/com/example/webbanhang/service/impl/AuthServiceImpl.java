@@ -38,7 +38,6 @@ public class AuthServiceImpl implements AuthService {
     @Override
     @Transactional
     public AuthResponse register(RegisterRequest request) {
-
         String email = request.getEmail().trim().toLowerCase();
 
         if (userRepository.existsByEmail(email)) {
@@ -59,32 +58,31 @@ public class AuthServiceImpl implements AuthService {
                 .isActive(true)
                 .build();
 
-        userRepository.save(user);
+        User savedUser = userRepository.saveAndFlush(user);
 
         Cart cart = Cart.builder()
-                .user(user)
+                .user(savedUser)
                 .build();
 
         cartRepository.save(cart);
 
-        UserPrincipal principal = UserPrincipal.from(user);
+        UserPrincipal principal = UserPrincipal.from(savedUser);
         String token = jwtTokenProvider.generateToken(principal);
 
-        log.info("[Auth] Đăng ký thành công: {}", user.getEmail());
+        log.info("[Auth] Đăng ký thành công: {}", savedUser.getEmail());
 
         return AuthResponse.of(
                 token,
-                user.getUserId(),
-                user.getFullName(),
-                user.getEmail(),
-                user.getRole()
+                savedUser.getUserId(),
+                savedUser.getFullName(),
+                savedUser.getEmail(),
+                savedUser.getRole()
         );
     }
 
     @Override
     @Transactional(readOnly = true)
     public AuthResponse login(LoginRequest request) {
-
         String email = request.getEmail().trim().toLowerCase();
 
         Authentication authentication = authenticationManager.authenticate(
@@ -97,7 +95,11 @@ public class AuthServiceImpl implements AuthService {
         UserPrincipal principal = (UserPrincipal) authentication.getPrincipal();
 
         User user = userRepository.findByEmail(principal.getEmail())
-                .orElseThrow(() -> new ResourceNotFoundException("User", "email", principal.getEmail()));
+                .orElseThrow(() -> new ResourceNotFoundException(
+                        "User",
+                        "email",
+                        principal.getEmail()
+                ));
 
         if (!Boolean.TRUE.equals(user.getIsActive())) {
             throw new BadRequestException("Tài khoản đã bị khóa");
@@ -119,7 +121,6 @@ public class AuthServiceImpl implements AuthService {
     @Override
     @Transactional
     public void changePassword(Integer userId, ChangePasswordRequest request) {
-
         User user = userRepository.findById(userId)
                 .orElseThrow(() -> new ResourceNotFoundException("User", userId));
 
@@ -132,6 +133,7 @@ public class AuthServiceImpl implements AuthService {
         }
 
         user.setPassword(passwordEncoder.encode(request.getNewPassword()));
+
         userRepository.save(user);
 
         log.info("[Auth] User {} đổi mật khẩu thành công", userId);

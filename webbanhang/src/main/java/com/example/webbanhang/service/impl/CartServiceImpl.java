@@ -8,43 +8,50 @@ import com.example.webbanhang.dto.response.ProductSummaryResponse;
 import com.example.webbanhang.entity.*;
 import com.example.webbanhang.exception.BadRequestException;
 import com.example.webbanhang.exception.ResourceNotFoundException;
-import com.example.webbanhang.repository.*;
+import com.example.webbanhang.repository.CartItemRepository;
+import com.example.webbanhang.repository.CartRepository;
+import com.example.webbanhang.repository.ProductImageRepository;
+import com.example.webbanhang.repository.ProductRepository;
 import com.example.webbanhang.service.CartService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
+import java.util.Collections;
 import java.util.List;
+import java.util.Map;
+import java.util.Objects;
 import java.util.Optional;
+import java.util.stream.Collectors;
 
 @Service
 @RequiredArgsConstructor
 public class CartServiceImpl implements CartService {
 
-    private final CartRepository        cartRepository;
-    private final CartItemRepository    cartItemRepository;
-    private final ProductRepository     productRepository;
+    private final CartRepository cartRepository;
+    private final CartItemRepository cartItemRepository;
+    private final ProductRepository productRepository;
     private final ProductImageRepository productImageRepository;
 
-    // ── Mapper ────────────────────────────────────────────────────────────────
-
     private CartResponse toResponse(Cart cart) {
-        List<CartItem> items = cartItemRepository.findByCartCartId(cart.getCartId());
+        List<CartItem> items = cartItemRepository.findByCartIdWithProduct(cart.getCartId());
+        Map<Integer, String> mainImageMap = getMainImageMap(items);
 
         List<CartItemResponse> itemResponses = items.stream().map(item -> {
             Product p = item.getProduct();
-            String mainImg = productImageRepository
-                    .findByProductProductIdAndIsMainTrue(p.getProductId())
-                    .map(ProductImage::getImageUrl).orElse(null);
 
             ProductSummaryResponse pSummary = ProductSummaryResponse.builder()
                     .productId(p.getProductId())
                     .productName(p.getProductName())
                     .price(p.getPrice())
                     .stock(p.getStock())
-                    .mainImageUrl(mainImg)
-                    .categoryName(p.getCategory().getCategoryName())
+                    .mainImageUrl(mainImageMap.get(p.getProductId()))
+                    .categoryName(
+                            p.getCategory() != null
+                                    ? p.getCategory().getCategoryName()
+                                    : null
+                    )
                     .build();
 
             BigDecimal subtotal = p.getPrice()
@@ -71,12 +78,31 @@ public class CartServiceImpl implements CartService {
                 .build();
     }
 
+    private Map<Integer, String> getMainImageMap(List<CartItem> items) {
+        List<Integer> productIds = items.stream()
+                .map(CartItem::getProduct)
+                .filter(Objects::nonNull)
+                .map(Product::getProductId)
+                .distinct()
+                .toList();
+
+        if (productIds.isEmpty()) {
+            return Collections.emptyMap();
+        }
+
+        return productImageRepository.findMainImagesByProductIds(productIds)
+                .stream()
+                .collect(Collectors.toMap(
+                        img -> img.getProduct().getProductId(),
+                        ProductImage::getImageUrl,
+                        (oldValue, newValue) -> oldValue
+                ));
+    }
+
     private Cart getCartByUserId(Integer userId) {
         return cartRepository.findByUserUserId(userId)
                 .orElseThrow(() -> new ResourceNotFoundException("Cart của user", userId));
     }
-
-    // ── Operations ────────────────────────────────────────────────────────────
 
     @Override
     @Transactional(readOnly = true)
@@ -92,20 +118,25 @@ public class CartServiceImpl implements CartService {
         Product product = productRepository.findById(request.getProductId())
                 .orElseThrow(() -> new ResourceNotFoundException("Product", request.getProductId()));
 
+        if (request.getQuantity() <= 0) {
+            throw new BadRequestException("Số lượng sản phẩm không hợp lệ");
+        }
+
         if (product.getStock() < request.getQuantity()) {
             throw new BadRequestException("Sản phẩm chỉ còn " + product.getStock() + " trong kho");
         }
 
-        // Nếu đã có item này → cộng thêm quantity
         Optional<CartItem> existing = cartItemRepository
                 .findByCartCartIdAndProductProductId(cart.getCartId(), product.getProductId());
 
         if (existing.isPresent()) {
             CartItem item = existing.get();
             int newQty = item.getQuantity() + request.getQuantity();
+
             if (newQty > product.getStock()) {
                 throw new BadRequestException("Vượt quá số lượng tồn kho (" + product.getStock() + ")");
             }
+
             item.setQuantity(newQty);
             cartItemRepository.save(item);
         } else {
@@ -114,6 +145,7 @@ public class CartServiceImpl implements CartService {
                     .product(product)
                     .quantity(request.getQuantity())
                     .build();
+
             cartItemRepository.save(item);
         }
 
@@ -125,11 +157,15 @@ public class CartServiceImpl implements CartService {
     public CartResponse updateItem(Integer userId, Integer cartItemId, UpdateCartItemRequest request) {
         Cart cart = getCartByUserId(userId);
 
-        CartItem item = cartItemRepository.findById(cartItemId)
+        CartItem item = cartItemRepository.findByIdWithCartAndProduct(cartItemId)
                 .orElseThrow(() -> new ResourceNotFoundException("CartItem", cartItemId));
 
         if (!item.getCart().getCartId().equals(cart.getCartId())) {
             throw new BadRequestException("CartItem không thuộc giỏ hàng của bạn");
+        }
+
+        if (request.getQuantity() <= 0) {
+            throw new BadRequestException("Số lượng sản phẩm không hợp lệ");
         }
 
         if (request.getQuantity() > item.getProduct().getStock()) {
@@ -139,6 +175,7 @@ public class CartServiceImpl implements CartService {
 
         item.setQuantity(request.getQuantity());
         cartItemRepository.save(item);
+
         return toResponse(cart);
     }
 
@@ -147,7 +184,7 @@ public class CartServiceImpl implements CartService {
     public CartResponse removeItem(Integer userId, Integer cartItemId) {
         Cart cart = getCartByUserId(userId);
 
-        CartItem item = cartItemRepository.findById(cartItemId)
+        CartItem item = cartItemRepository.findByIdWithCartAndProduct(cartItemId)
                 .orElseThrow(() -> new ResourceNotFoundException("CartItem", cartItemId));
 
         if (!item.getCart().getCartId().equals(cart.getCartId())) {
@@ -155,6 +192,7 @@ public class CartServiceImpl implements CartService {
         }
 
         cartItemRepository.delete(item);
+
         return toResponse(cart);
     }
 

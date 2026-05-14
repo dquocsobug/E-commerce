@@ -11,7 +11,10 @@ import com.example.webbanhang.entity.ProductPromotion;
 import com.example.webbanhang.entity.Promotion;
 import com.example.webbanhang.exception.BadRequestException;
 import com.example.webbanhang.exception.ResourceNotFoundException;
-import com.example.webbanhang.repository.*;
+import com.example.webbanhang.repository.ProductImageRepository;
+import com.example.webbanhang.repository.ProductPromotionRepository;
+import com.example.webbanhang.repository.ProductRepository;
+import com.example.webbanhang.repository.PromotionRepository;
 import com.example.webbanhang.service.PromotionService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -22,7 +25,8 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
 
 import java.time.LocalDateTime;
-import java.util.List;
+import java.util.*;
+import java.util.stream.Collectors;
 
 @Slf4j
 @Service
@@ -34,29 +38,35 @@ public class PromotionServiceImpl implements PromotionService {
     private final ProductRepository productRepository;
     private final ProductImageRepository productImageRepository;
 
-    // ── Mapper ────────────────────────────────────────────────────────────────
-
     private PromotionResponse toResponse(Promotion promotion) {
-        List<ProductSummaryResponse> products = productPromotionRepository
-                .findByPromotionPromotionId(promotion.getPromotionId())
-                .stream()
-                .map(pp -> {
-                    Product p = pp.getProduct();
+        List<ProductPromotion> productPromotions =
+                productPromotionRepository.findByPromotionIdWithProduct(promotion.getPromotionId());
 
-                    String mainImg = productImageRepository
-                            .findByProductProductIdAndIsMainTrue(p.getProductId())
-                            .map(ProductImage::getImageUrl)
-                            .orElse(null);
+        Map<Integer, String> mainImageMap = getMainImageMap(productPromotions);
 
-                    return ProductSummaryResponse.builder()
-                            .productId(p.getProductId())
-                            .productName(p.getProductName())
-                            .price(p.getPrice())
-                            .stock(p.getStock())
-                            .mainImageUrl(mainImg)
-                            .categoryName(p.getCategory().getCategoryName())
-                            .build();
-                })
+        return toResponse(promotion, productPromotions, mainImageMap);
+    }
+
+    private PromotionResponse toResponse(
+            Promotion promotion,
+            List<ProductPromotion> productPromotions,
+            Map<Integer, String> mainImageMap
+    ) {
+        List<ProductSummaryResponse> products = productPromotions.stream()
+                .map(ProductPromotion::getProduct)
+                .filter(Objects::nonNull)
+                .map(p -> ProductSummaryResponse.builder()
+                        .productId(p.getProductId())
+                        .productName(p.getProductName())
+                        .price(p.getPrice())
+                        .stock(p.getStock())
+                        .mainImageUrl(mainImageMap.get(p.getProductId()))
+                        .categoryName(
+                                p.getCategory() != null
+                                        ? p.getCategory().getCategoryName()
+                                        : null
+                        )
+                        .build())
                 .toList();
 
         return PromotionResponse.builder()
@@ -72,20 +82,63 @@ public class PromotionServiceImpl implements PromotionService {
                 .build();
     }
 
+    private List<PromotionResponse> toResponseList(List<Promotion> promotions) {
+        if (promotions == null || promotions.isEmpty()) {
+            return Collections.emptyList();
+        }
+
+        List<Integer> promotionIds = promotions.stream()
+                .map(Promotion::getPromotionId)
+                .toList();
+
+        List<ProductPromotion> allProductPromotions =
+                productPromotionRepository.findByPromotionIdsWithProduct(promotionIds);
+
+        Map<Integer, List<ProductPromotion>> ppMap = allProductPromotions.stream()
+                .collect(Collectors.groupingBy(pp -> pp.getPromotion().getPromotionId()));
+
+        Map<Integer, String> mainImageMap = getMainImageMap(allProductPromotions);
+
+        return promotions.stream()
+                .map(promotion -> toResponse(
+                        promotion,
+                        ppMap.getOrDefault(promotion.getPromotionId(), Collections.emptyList()),
+                        mainImageMap
+                ))
+                .toList();
+    }
+
+    private Map<Integer, String> getMainImageMap(List<ProductPromotion> productPromotions) {
+        List<Integer> productIds = productPromotions.stream()
+                .map(ProductPromotion::getProduct)
+                .filter(Objects::nonNull)
+                .map(Product::getProductId)
+                .distinct()
+                .toList();
+
+        if (productIds.isEmpty()) {
+            return Collections.emptyMap();
+        }
+
+        return productImageRepository.findMainImagesByProductIds(productIds)
+                .stream()
+                .collect(Collectors.toMap(
+                        img -> img.getProduct().getProductId(),
+                        ProductImage::getImageUrl,
+                        (oldValue, newValue) -> oldValue
+                ));
+    }
+
     private Promotion findById(Integer id) {
         return promotionRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Promotion", id));
     }
 
-    // ── Public ────────────────────────────────────────────────────────────────
-
     @Override
     @Transactional(readOnly = true)
     public List<PromotionResponse> getActivePromotions() {
-        return promotionRepository.findActivePromotions(LocalDateTime.now())
-                .stream()
-                .map(this::toResponse)
-                .toList();
+        List<Promotion> promotions = promotionRepository.findActivePromotions(LocalDateTime.now());
+        return toResponseList(promotions);
     }
 
     @Override
@@ -94,8 +147,6 @@ public class PromotionServiceImpl implements PromotionService {
         return toResponse(findById(promotionId));
     }
 
-    // ── Admin ─────────────────────────────────────────────────────────────────
-
     @Override
     @Transactional(readOnly = true)
     public PageResponse<PromotionResponse> getAll(String keyword, Pageable pageable) {
@@ -103,10 +154,7 @@ public class PromotionServiceImpl implements PromotionService {
                 ? promotionRepository.findByPromotionNameContainingIgnoreCase(keyword, pageable)
                 : promotionRepository.findAll(pageable);
 
-        List<PromotionResponse> content = page.getContent()
-                .stream()
-                .map(this::toResponse)
-                .toList();
+        List<PromotionResponse> content = toResponseList(page.getContent());
 
         return PageResponse.of(page, content);
     }
@@ -147,7 +195,9 @@ public class PromotionServiceImpl implements PromotionService {
         promotion.setStartDate(request.getStartDate());
         promotion.setEndDate(request.getEndDate());
 
-        return toResponse(promotionRepository.save(promotion));
+        Promotion saved = promotionRepository.save(promotion);
+
+        return toResponse(saved);
     }
 
     @Override
@@ -169,12 +219,13 @@ public class PromotionServiceImpl implements PromotionService {
         Promotion promotion = findById(request.getPromotionId());
 
         for (Integer productId : request.getProductIds()) {
-
             Product product = productRepository.findById(productId)
                     .orElseThrow(() -> new ResourceNotFoundException("Product", productId));
 
             if (productPromotionRepository.existsByProductProductIdAndPromotionPromotionId(
-                    productId, promotion.getPromotionId())) {
+                    productId,
+                    promotion.getPromotionId()
+            )) {
                 continue;
             }
 
@@ -197,14 +248,14 @@ public class PromotionServiceImpl implements PromotionService {
         }
 
         if (!productPromotionRepository.existsByProductProductIdAndPromotionPromotionId(
-                productId, promotionId)) {
+                productId,
+                promotionId
+        )) {
             throw new BadRequestException("Sản phẩm không thuộc khuyến mãi này");
         }
 
         productPromotionRepository.deleteByProductIdAndPromotionId(productId, promotionId);
     }
-
-    // ── Validate ──────────────────────────────────────────────────────────────
 
     private void validateDates(LocalDateTime startDate, LocalDateTime endDate) {
         if (startDate != null && endDate != null && endDate.isBefore(startDate)) {

@@ -23,6 +23,16 @@ public interface ProductImageRepository extends JpaRepository<ProductImage, Inte
 
     long countByProductProductId(Integer productId);
 
+    @Query("""
+        SELECT pi
+        FROM ProductImage pi
+        WHERE pi.product.productId IN :productIds
+          AND pi.isMain = true
+        """)
+    List<ProductImage> findMainImagesByProductIds(
+            @Param("productIds") List<Integer> productIds
+    );
+
     @Modifying
     @Query("UPDATE ProductImage pi SET pi.isMain = false WHERE pi.product.productId = :productId")
     void clearMainImageByProductId(@Param("productId") Integer productId);

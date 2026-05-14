@@ -21,9 +21,14 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
+import java.util.stream.Collectors;
 
 import java.time.LocalDateTime;
+import java.util.Collections;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
+import java.util.stream.Collectors;
 
 @Slf4j
 @Service
@@ -39,13 +44,77 @@ public class PostServiceImpl implements PostService {
     private final UserRepository userRepository;
     private final VoucherService voucherService;
 
-    private PostSummaryResponse toSummaryResponse(Post post) {
-        String mainImg = postImageRepository
-                .findByPostPostIdAndIsMainTrue(post.getPostId())
-                .map(PostImage::getImageUrl)
-                .orElse(null);
+    private List<Integer> getPostIds(List<Post> posts) {
+        if (posts == null || posts.isEmpty()) {
+            return Collections.emptyList();
+        }
 
-        long commentCount = commentRepository.countByPostPostId(post.getPostId());
+        return posts.stream()
+                .map(Post::getPostId)
+                .toList();
+    }
+
+    private Map<Integer, PostImage> getMainImageMap(List<Integer> postIds) {
+        if (postIds == null || postIds.isEmpty()) {
+            return Collections.emptyMap();
+        }
+
+        return postImageRepository.findMainImagesByPostIds(postIds)
+                .stream()
+                .collect(Collectors.toMap(
+                        img -> img.getPost().getPostId(),
+                        img -> img,
+                        (oldValue, newValue) -> oldValue
+                ));
+    }
+
+    private Map<Integer, Long> getCommentCountMap(List<Integer> postIds) {
+        if (postIds == null || postIds.isEmpty()) {
+            return Collections.emptyMap();
+        }
+
+        return commentRepository.countByPostIds(postIds)
+                .stream()
+                .collect(Collectors.toMap(
+                        row -> (Integer) row[0],
+                        row -> (Long) row[1]
+                ));
+    }
+
+    private Map<Integer, List<PostImage>> getImagesMap(List<Integer> postIds) {
+        if (postIds == null || postIds.isEmpty()) {
+            return Collections.emptyMap();
+        }
+
+        return postImageRepository.findByPostIdsOrderByDisplayOrderAsc(postIds)
+                .stream()
+                .collect(Collectors.groupingBy(
+                        img -> img.getPost().getPostId(),
+                        LinkedHashMap::new,
+                        Collectors.toList()
+                ));
+    }
+
+    private Map<Integer, List<PostProduct>> getPostProductsMap(List<Integer> postIds) {
+        if (postIds == null || postIds.isEmpty()) {
+            return Collections.emptyMap();
+        }
+
+        return postProductRepository.findByPostIdsWithProduct(postIds)
+                .stream()
+                .collect(Collectors.groupingBy(
+                        pp -> pp.getPost().getPostId(),
+                        LinkedHashMap::new,
+                        Collectors.toList()
+                ));
+    }
+
+    private PostSummaryResponse toSummaryResponse(
+            Post post,
+            Map<Integer, PostImage> mainImageMap,
+            Map<Integer, Long> commentCountMap
+    ) {
+        PostImage mainImage = mainImageMap.get(post.getPostId());
         User author = post.getCreatedBy();
 
         return PostSummaryResponse.builder()
@@ -58,16 +127,34 @@ public class PostServiceImpl implements PostService {
                         .fullName(author.getFullName())
                         .email(author.getEmail())
                         .build())
-                .mainImageUrl(mainImg)
-                .commentCount(commentCount)
+                .mainImageUrl(mainImage != null ? mainImage.getImageUrl() : null)
+                .commentCount(commentCountMap.getOrDefault(post.getPostId(), 0L))
                 .createdAt(post.getCreatedAt())
                 .build();
     }
 
+    private List<PostSummaryResponse> toSummaryResponses(Page<Post> page) {
+        List<Post> posts = page.getContent();
+        List<Integer> postIds = getPostIds(posts);
+
+        Map<Integer, PostImage> mainImageMap = getMainImageMap(postIds);
+        Map<Integer, Long> commentCountMap = getCommentCountMap(postIds);
+
+        return posts.stream()
+                .map(post -> toSummaryResponse(post, mainImageMap, commentCountMap))
+                .toList();
+    }
+
     private PostResponse toFullResponse(Post post) {
-        List<PostImageResponse> imageResponses = postImageRepository
-                .findByPostPostIdOrderByDisplayOrderAsc(post.getPostId())
-                .stream()
+        List<Integer> postIds = List.of(post.getPostId());
+
+        Map<Integer, List<PostImage>> imagesMap = getImagesMap(postIds);
+        Map<Integer, List<PostProduct>> postProductsMap = getPostProductsMap(postIds);
+        Map<Integer, Long> commentCountMap = getCommentCountMap(postIds);
+
+        List<PostImage> images = imagesMap.getOrDefault(post.getPostId(), Collections.emptyList());
+
+        List<PostImageResponse> imageResponses = images.stream()
                 .map(img -> PostImageResponse.builder()
                         .imageId(img.getImageId())
                         .imageUrl(img.getImageUrl())
@@ -82,16 +169,36 @@ public class PostServiceImpl implements PostService {
                 .map(PostImageResponse::getImageUrl)
                 .orElse(imageResponses.isEmpty() ? null : imageResponses.get(0).getImageUrl());
 
-        List<PostProductResponse> productResponses = postProductRepository
-                .findByPostPostIdOrderByDisplayOrderAsc(post.getPostId())
-                .stream()
+        List<PostProduct> postProducts = postProductsMap.getOrDefault(
+                post.getPostId(),
+                Collections.emptyList()
+        );
+
+        List<Integer> productIds = postProducts.stream()
+                .map(pp -> pp.getProduct().getProductId())
+                .distinct()
+                .toList();
+
+        Map<Integer, ProductImage> productMainImageMap;
+
+        if (productIds.isEmpty()) {
+            productMainImageMap = Collections.emptyMap();
+        } else {
+            List<ProductImage> productImages = productImageRepository
+                    .findMainImagesByProductIds(productIds);
+
+            productMainImageMap = productImages.stream()
+                    .collect(Collectors.toMap(
+                            img -> img.getProduct().getProductId(),
+                            img -> img,
+                            (oldValue, newValue) -> oldValue
+                    ));
+        }
+
+        List<PostProductResponse> productResponses = postProducts.stream()
                 .map(pp -> {
                     Product p = pp.getProduct();
-
-                    String pMainImg = productImageRepository
-                            .findByProductProductIdAndIsMainTrue(p.getProductId())
-                            .map(ProductImage::getImageUrl)
-                            .orElse(null);
+                    ProductImage pMainImg = productMainImageMap.get(p.getProductId());
 
                     return PostProductResponse.builder()
                             .id(pp.getId())
@@ -100,8 +207,12 @@ public class PostServiceImpl implements PostService {
                                     .productName(p.getProductName())
                                     .price(p.getPrice())
                                     .stock(p.getStock())
-                                    .mainImageUrl(pMainImg)
-                                    .categoryName(p.getCategory().getCategoryName())
+                                    .mainImageUrl(pMainImg != null ? pMainImg.getImageUrl() : null)
+                                    .categoryName(
+                                            p.getCategory() != null
+                                                    ? p.getCategory().getCategoryName()
+                                                    : null
+                                    )
                                     .build())
                             .displayOrder(pp.getDisplayOrder())
                             .note(pp.getNote())
@@ -109,7 +220,6 @@ public class PostServiceImpl implements PostService {
                 })
                 .toList();
 
-        long commentCount = commentRepository.countByPostPostId(post.getPostId());
         User author = post.getCreatedBy();
 
         return PostResponse.builder()
@@ -127,7 +237,7 @@ public class PostServiceImpl implements PostService {
                 .images(imageResponses)
                 .mainImageUrl(mainImg)
                 .products(productResponses)
-                .commentCount(commentCount)
+                .commentCount(commentCountMap.getOrDefault(post.getPostId(), 0L))
                 .createdAt(post.getCreatedAt())
                 .build();
     }
@@ -171,10 +281,22 @@ public class PostServiceImpl implements PostService {
 
         if (requests == null || requests.isEmpty()) return;
 
+        List<Integer> productIds = requests.stream()
+                .map(PostProductRequest::getProductId)
+                .distinct()
+                .toList();
+
+        Map<Integer, Product> productMap = productRepository.findAllById(productIds)
+                .stream()
+                .collect(Collectors.toMap(Product::getProductId, product -> product));
+
         List<PostProduct> postProducts = requests.stream()
                 .map(req -> {
-                    Product product = productRepository.findById(req.getProductId())
-                            .orElseThrow(() -> new ResourceNotFoundException("Product", req.getProductId()));
+                    Product product = productMap.get(req.getProductId());
+
+                    if (product == null) {
+                        throw new ResourceNotFoundException("Product", req.getProductId());
+                    }
 
                     return PostProduct.builder()
                             .post(post)
@@ -195,12 +317,7 @@ public class PostServiceImpl implements PostService {
                 ? postRepository.searchPublished(keyword, pageable)
                 : postRepository.findByStatus(PostStatus.APPROVED, pageable);
 
-        List<PostSummaryResponse> content = page.getContent()
-                .stream()
-                .map(this::toSummaryResponse)
-                .toList();
-
-        return PageResponse.of(page, content);
+        return PageResponse.of(page, toSummaryResponses(page));
     }
 
     @Override
@@ -223,12 +340,7 @@ public class PostServiceImpl implements PostService {
                 ? postRepository.findByCreatedByUserIdAndStatus(userId, status, pageable)
                 : postRepository.findByCreatedByUserId(userId, pageable);
 
-        List<PostSummaryResponse> content = page.getContent()
-                .stream()
-                .map(this::toSummaryResponse)
-                .toList();
-
-        return PageResponse.of(page, content);
+        return PageResponse.of(page, toSummaryResponses(page));
     }
 
     @Override
@@ -352,12 +464,7 @@ public class PostServiceImpl implements PostService {
                 pageable
         );
 
-        List<PostSummaryResponse> content = page.getContent()
-                .stream()
-                .map(this::toSummaryResponse)
-                .toList();
-
-        return PageResponse.of(page, content);
+        return PageResponse.of(page, toSummaryResponses(page));
     }
 
     @Override
@@ -395,10 +502,7 @@ public class PostServiceImpl implements PostService {
             throw new BadRequestException("Chỉ có thể duyệt bài viết đang ở trạng thái PENDING");
         }
 
-        User admin = userRepository.findAll()
-                .stream()
-                .filter(u -> u.getRole() == Role.ADMIN)
-                .findFirst()
+        User admin = userRepository.findFirstByRole(Role.ADMIN)
                 .orElseThrow(() -> new ResourceNotFoundException("User", "role", "ADMIN"));
 
         if (Boolean.TRUE.equals(request.getApproved())) {
@@ -406,8 +510,8 @@ public class PostServiceImpl implements PostService {
             post.setApprovedBy(admin);
             post.setApprovedAt(LocalDateTime.now());
             post.setRejectReason(null);
-
             post.setUpdatedAt(LocalDateTime.now());
+
             postRepository.saveAndFlush(post);
 
             voucherService.rewardUserForApprovedPost(

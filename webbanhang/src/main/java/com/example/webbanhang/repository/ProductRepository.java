@@ -147,4 +147,18 @@ public interface ProductRepository extends JpaRepository<Product, Integer> {
     List<Product> findProductsWithActivePromotion();
 
     boolean existsByCategoryCategoryId(Integer categoryId);
+
+    @Query("""
+    SELECT p.category.categoryId, COUNT(p)
+    FROM Product p
+    GROUP BY p.category.categoryId
+""")
+    List<Object[]> countProductsGroupByCategory();
+
+    @Query("""
+    SELECT COUNT(p)
+    FROM Product p
+    WHERE p.category.categoryId = :categoryId
+""")
+    long countByCategoryId(@Param("categoryId") Integer categoryId);
 }

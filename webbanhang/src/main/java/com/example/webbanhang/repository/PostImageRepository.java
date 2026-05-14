@@ -17,6 +17,26 @@ public interface PostImageRepository extends JpaRepository<PostImage, Integer> {
 
     Optional<PostImage> findByPostPostIdAndIsMainTrue(Integer postId);
 
+    @Query("""
+        SELECT pi
+        FROM PostImage pi
+        WHERE pi.post.postId IN :postIds
+        ORDER BY pi.post.postId ASC, pi.displayOrder ASC
+        """)
+    List<PostImage> findByPostIdsOrderByDisplayOrderAsc(
+            @Param("postIds") List<Integer> postIds
+    );
+
+    @Query("""
+        SELECT pi
+        FROM PostImage pi
+        WHERE pi.post.postId IN :postIds
+          AND pi.isMain = true
+        """)
+    List<PostImage> findMainImagesByPostIds(
+            @Param("postIds") List<Integer> postIds
+    );
+
     long countByPostPostId(Integer postId);
 
     @Modifying

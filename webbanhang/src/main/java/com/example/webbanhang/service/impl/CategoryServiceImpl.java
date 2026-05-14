@@ -14,7 +14,10 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.util.Collections;
 import java.util.List;
+import java.util.Map;
+import java.util.stream.Collectors;
 
 @Slf4j
 @Service
@@ -22,27 +25,42 @@ import java.util.List;
 public class CategoryServiceImpl implements CategoryService {
 
     private final CategoryRepository categoryRepository;
-    private final ProductRepository  productRepository;
+    private final ProductRepository productRepository;
 
-    // ── Mapper ────────────────────────────────────────────────────────────────
-
-    private CategoryResponse toResponse(Category category) {
-        long count = productRepository.findByCategoryCategoryId(category.getCategoryId()).size();
+    private CategoryResponse toResponse(Category category, long productCount) {
         return CategoryResponse.builder()
                 .categoryId(category.getCategoryId())
                 .categoryName(category.getCategoryName())
                 .description(category.getDescription())
-                .productCount(count)
+                .productCount(productCount)
                 .build();
     }
 
-    // ── Public ────────────────────────────────────────────────────────────────
+    private Map<Integer, Long> getProductCountMap() {
+        List<Object[]> rows = productRepository.countProductsGroupByCategory();
+
+        if (rows == null || rows.isEmpty()) {
+            return Collections.emptyMap();
+        }
+
+        return rows.stream()
+                .collect(Collectors.toMap(
+                        row -> (Integer) row[0],
+                        row -> (Long) row[1]
+                ));
+    }
 
     @Override
     @Transactional(readOnly = true)
     public List<CategoryResponse> getAll() {
-        return categoryRepository.findAll().stream()
-                .map(this::toResponse)
+        List<Category> categories = categoryRepository.findAll();
+        Map<Integer, Long> countMap = getProductCountMap();
+
+        return categories.stream()
+                .map(category -> toResponse(
+                        category,
+                        countMap.getOrDefault(category.getCategoryId(), 0L)
+                ))
                 .toList();
     }
 
@@ -51,10 +69,11 @@ public class CategoryServiceImpl implements CategoryService {
     public CategoryResponse getById(Integer categoryId) {
         Category category = categoryRepository.findById(categoryId)
                 .orElseThrow(() -> new ResourceNotFoundException("Category", categoryId));
-        return toResponse(category);
-    }
 
-    // ── Admin ─────────────────────────────────────────────────────────────────
+        long productCount = productRepository.countByCategoryId(categoryId);
+
+        return toResponse(category, productCount);
+    }
 
     @Override
     @Transactional
@@ -62,11 +81,15 @@ public class CategoryServiceImpl implements CategoryService {
         if (categoryRepository.existsByCategoryName(request.getCategoryName())) {
             throw new ConflictException("Tên danh mục '" + request.getCategoryName() + "' đã tồn tại");
         }
+
         Category category = Category.builder()
                 .categoryName(request.getCategoryName())
                 .description(request.getDescription())
                 .build();
-        return toResponse(categoryRepository.save(category));
+
+        Category saved = categoryRepository.save(category);
+
+        return toResponse(saved, 0L);
     }
 
     @Override
@@ -75,7 +98,6 @@ public class CategoryServiceImpl implements CategoryService {
         Category category = categoryRepository.findById(categoryId)
                 .orElseThrow(() -> new ResourceNotFoundException("Category", categoryId));
 
-        // Kiểm tra tên mới có trùng với danh mục khác không
         categoryRepository.findByCategoryName(request.getCategoryName())
                 .ifPresent(existing -> {
                     if (!existing.getCategoryId().equals(categoryId)) {
@@ -85,7 +107,11 @@ public class CategoryServiceImpl implements CategoryService {
 
         category.setCategoryName(request.getCategoryName());
         category.setDescription(request.getDescription());
-        return toResponse(categoryRepository.save(category));
+
+        Category saved = categoryRepository.save(category);
+        long productCount = productRepository.countByCategoryId(categoryId);
+
+        return toResponse(saved, productCount);
     }
 
     @Override
@@ -94,10 +120,13 @@ public class CategoryServiceImpl implements CategoryService {
         if (!categoryRepository.existsById(categoryId)) {
             throw new ResourceNotFoundException("Category", categoryId);
         }
+
         if (productRepository.existsByCategoryCategoryId(categoryId)) {
             throw new BadRequestException("Không thể xóa danh mục đang có sản phẩm");
         }
+
         categoryRepository.deleteById(categoryId);
+
         log.info("[Category] Xóa danh mục id={}", categoryId);
     }
 }

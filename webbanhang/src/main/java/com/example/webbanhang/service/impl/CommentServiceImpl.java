@@ -34,6 +34,7 @@ public class CommentServiceImpl implements CommentService {
 
     private CommentResponse toResponse(Comment comment) {
         User u = comment.getUser();
+
         return CommentResponse.builder()
                 .commentId(comment.getCommentId())
                 .user(UserSummaryResponse.builder()
@@ -57,7 +58,7 @@ public class CommentServiceImpl implements CommentService {
             throw new BadRequestException("Bài viết không tồn tại hoặc chưa được duyệt");
         }
 
-        Page<Comment> page = commentRepository.findByPostPostId(postId, pageable);
+        Page<Comment> page = commentRepository.findByPostPostIdWithUserAndPost(postId, pageable);
 
         List<CommentResponse> content = page.getContent()
                 .stream()
@@ -86,13 +87,15 @@ public class CommentServiceImpl implements CommentService {
                 .content(request.getContent())
                 .build();
 
-        return toResponse(commentRepository.save(comment));
+        Comment saved = commentRepository.save(comment);
+
+        return toResponse(saved);
     }
 
     @Override
     @Transactional
     public CommentResponse update(Integer userId, Integer commentId, UpdateCommentRequest request) {
-        Comment comment = commentRepository.findById(commentId)
+        Comment comment = commentRepository.findByIdWithUserAndPost(commentId)
                 .orElseThrow(() -> new ResourceNotFoundException("Comment", commentId));
 
         if (!comment.getUser().getUserId().equals(userId)) {
@@ -100,13 +103,16 @@ public class CommentServiceImpl implements CommentService {
         }
 
         comment.setContent(request.getContent());
-        return toResponse(commentRepository.save(comment));
+
+        Comment saved = commentRepository.save(comment);
+
+        return toResponse(saved);
     }
 
     @Override
     @Transactional
     public void delete(Integer userId, Integer commentId, boolean isAdmin) {
-        Comment comment = commentRepository.findById(commentId)
+        Comment comment = commentRepository.findByIdWithUserAndPost(commentId)
                 .orElseThrow(() -> new ResourceNotFoundException("Comment", commentId));
 
         if (!isAdmin && !comment.getUser().getUserId().equals(userId)) {

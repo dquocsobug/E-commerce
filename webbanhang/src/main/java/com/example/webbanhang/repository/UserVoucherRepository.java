@@ -61,4 +61,46 @@ public interface UserVoucherRepository extends JpaRepository<UserVoucher, Intege
     @Modifying
     @Query("DELETE FROM UserVoucher uv WHERE uv.voucher.voucherId = :voucherId")
     void deleteAllByVoucherId(@Param("voucherId") Integer voucherId);
+
+    @Query("""
+    SELECT uv
+    FROM UserVoucher uv
+    LEFT JOIN FETCH uv.voucher v
+    WHERE uv.user.userId = :userId
+    ORDER BY uv.assignedAt DESC
+""")
+    List<UserVoucher> findByUserIdWithVoucherOrderByAssignedAtDesc(
+            @Param("userId") Integer userId
+    );
+
+    @Query(
+            value = """
+        SELECT uv
+        FROM UserVoucher uv
+        LEFT JOIN FETCH uv.user u
+        LEFT JOIN FETCH uv.voucher v
+        WHERE uv.voucher.voucherId = :voucherId
+        ORDER BY uv.assignedAt DESC
+    """,
+            countQuery = """
+        SELECT COUNT(uv)
+        FROM UserVoucher uv
+        WHERE uv.voucher.voucherId = :voucherId
+    """
+    )
+    Page<UserVoucher> findByVoucherIdWithUserAndVoucher(
+            @Param("voucherId") Integer voucherId,
+            Pageable pageable
+    );
+
+    @Query("""
+    SELECT uv.user.userId
+    FROM UserVoucher uv
+    WHERE uv.voucher.voucherId = :voucherId
+      AND uv.user.userId IN :userIds
+""")
+    List<Integer> findExistingUserIdsByVoucherId(
+            @Param("voucherId") Integer voucherId,
+            @Param("userIds") List<Integer> userIds
+    );
 }

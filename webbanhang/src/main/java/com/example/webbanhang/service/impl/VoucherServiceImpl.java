@@ -183,7 +183,7 @@ public class VoucherServiceImpl implements VoucherService {
     @Override
     @Transactional(readOnly = true)
     public List<UserVoucherResponse> getMyVouchers(Integer userId) {
-        return userVoucherRepository.findByUserUserIdOrderByAssignedAtDesc(userId)
+        return userVoucherRepository.findByUserIdWithVoucherOrderByAssignedAtDesc(userId)
                 .stream()
                 .filter(uv -> !Boolean.TRUE.equals(uv.getIsUsed()))
                 .filter(uv -> isValid(uv.getVoucher()))
@@ -366,36 +366,55 @@ public class VoucherServiceImpl implements VoucherService {
         Voucher voucher = voucherRepository.findById(request.getVoucherId())
                 .orElseThrow(() -> new ResourceNotFoundException("Voucher", request.getVoucherId()));
 
-        for (Integer userId : request.getUserIds()) {
-            User user = userRepository.findById(userId)
-                    .orElseThrow(() -> new ResourceNotFoundException("User", userId));
+        List<Integer> userIds = request.getUserIds();
 
-            if (StringUtils.hasText(voucher.getTargetRole())
-                    && !voucher.getTargetRole().equalsIgnoreCase(user.getRole().name())) {
-                log.warn("[Voucher] User {} không đúng role {}, bỏ qua", userId, voucher.getTargetRole());
-                continue;
-            }
-
-            boolean existed = userVoucherRepository.existsByUserUserIdAndVoucherVoucherId(
-                    userId,
-                    voucher.getVoucherId()
-            );
-
-            if (existed) {
-                log.warn("[Voucher] User {} đã có voucher {}, bỏ qua", userId, voucher.getVoucherCode());
-                continue;
-            }
-
-            UserVoucher uv = UserVoucher.builder()
-                    .user(user)
-                    .voucher(voucher)
-                    .isUsed(false)
-                    .build();
-
-            userVoucherRepository.save(uv);
-
-            log.info("[Voucher] Cấp voucher {} cho user {}", voucher.getVoucherCode(), userId);
+        if (userIds == null || userIds.isEmpty()) {
+            throw new BadRequestException("Danh sách user không được rỗng");
         }
+
+        List<User> users = userRepository.findAllById(userIds);
+
+        if (users.size() != userIds.size()) {
+            throw new ResourceNotFoundException("User", "userIds", userIds);
+        }
+
+        List<Integer> existedUserIds = userVoucherRepository.findExistingUserIdsByVoucherId(
+                voucher.getVoucherId(),
+                userIds
+        );
+
+        List<UserVoucher> userVouchers = users.stream()
+                .filter(user -> {
+                    if (StringUtils.hasText(voucher.getTargetRole())
+                            && !voucher.getTargetRole().equalsIgnoreCase(user.getRole().name())) {
+                        log.warn("[Voucher] User {} không đúng role {}, bỏ qua",
+                                user.getUserId(),
+                                voucher.getTargetRole());
+                        return false;
+                    }
+
+                    if (existedUserIds.contains(user.getUserId())) {
+                        log.warn("[Voucher] User {} đã có voucher {}, bỏ qua",
+                                user.getUserId(),
+                                voucher.getVoucherCode());
+                        return false;
+                    }
+
+                    return true;
+                })
+                .map(user -> UserVoucher.builder()
+                        .user(user)
+                        .voucher(voucher)
+                        .isUsed(false)
+                        .assignedAt(LocalDateTime.now())
+                        .build())
+                .toList();
+
+        userVoucherRepository.saveAll(userVouchers);
+
+        log.info("[Voucher] Cấp voucher {} cho {} user",
+                voucher.getVoucherCode(),
+                userVouchers.size());
     }
 
     @Override
@@ -406,7 +425,7 @@ public class VoucherServiceImpl implements VoucherService {
         }
 
         Page<UserVoucher> page = userVoucherRepository
-                .findByVoucherVoucherIdOrderByAssignedAtDesc(voucherId, pageable);
+                .findByVoucherIdWithUserAndVoucher(voucherId, pageable);
 
         List<UserVoucherResponse> content = page.getContent()
                 .stream()
