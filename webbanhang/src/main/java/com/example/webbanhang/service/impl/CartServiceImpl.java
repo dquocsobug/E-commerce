@@ -16,6 +16,7 @@ import com.example.webbanhang.service.CartService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import com.example.webbanhang.repository.UserRepository;
 
 import java.math.BigDecimal;
 import java.util.Collections;
@@ -33,6 +34,7 @@ public class CartServiceImpl implements CartService {
     private final CartItemRepository cartItemRepository;
     private final ProductRepository productRepository;
     private final ProductImageRepository productImageRepository;
+    private final UserRepository userRepository;
 
     private CartResponse toResponse(Cart cart) {
         List<CartItem> items = cartItemRepository.findByCartIdWithProduct(cart.getCartId());
@@ -99,21 +101,30 @@ public class CartServiceImpl implements CartService {
                 ));
     }
 
-    private Cart getCartByUserId(Integer userId) {
+    private Cart getOrCreateCartByUserId(Integer userId) {
         return cartRepository.findByUserUserId(userId)
-                .orElseThrow(() -> new ResourceNotFoundException("Cart của user", userId));
+                .orElseGet(() -> {
+                    User user = userRepository.findById(userId)
+                            .orElseThrow(() -> new ResourceNotFoundException("User", userId));
+
+                    Cart cart = Cart.builder()
+                            .user(user)
+                            .build();
+
+                    return cartRepository.save(cart);
+                });
     }
 
     @Override
     @Transactional(readOnly = true)
     public CartResponse getMyCart(Integer userId) {
-        return toResponse(getCartByUserId(userId));
+        return toResponse(getOrCreateCartByUserId(userId));
     }
 
     @Override
     @Transactional
     public CartResponse addItem(Integer userId, AddToCartRequest request) {
-        Cart cart = getCartByUserId(userId);
+        Cart cart = getOrCreateCartByUserId(userId);
 
         Product product = productRepository.findById(request.getProductId())
                 .orElseThrow(() -> new ResourceNotFoundException("Product", request.getProductId()));
@@ -155,7 +166,7 @@ public class CartServiceImpl implements CartService {
     @Override
     @Transactional
     public CartResponse updateItem(Integer userId, Integer cartItemId, UpdateCartItemRequest request) {
-        Cart cart = getCartByUserId(userId);
+        Cart cart = getOrCreateCartByUserId(userId);
 
         CartItem item = cartItemRepository.findByIdWithCartAndProduct(cartItemId)
                 .orElseThrow(() -> new ResourceNotFoundException("CartItem", cartItemId));
@@ -182,7 +193,7 @@ public class CartServiceImpl implements CartService {
     @Override
     @Transactional
     public CartResponse removeItem(Integer userId, Integer cartItemId) {
-        Cart cart = getCartByUserId(userId);
+        Cart cart = getOrCreateCartByUserId(userId);
 
         CartItem item = cartItemRepository.findByIdWithCartAndProduct(cartItemId)
                 .orElseThrow(() -> new ResourceNotFoundException("CartItem", cartItemId));
@@ -199,7 +210,7 @@ public class CartServiceImpl implements CartService {
     @Override
     @Transactional
     public void clearCart(Integer userId) {
-        Cart cart = getCartByUserId(userId);
+        Cart cart = getOrCreateCartByUserId(userId);
         cartItemRepository.deleteAllByCartId(cart.getCartId());
     }
 }
