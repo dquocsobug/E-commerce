@@ -1173,3 +1173,34 @@
     opacity: 0.4;
   }
 }
+@media (max-width: 768px) {
+  .overlayActions {
+    gap: 0;
+  }
+
+  .overlayActions .overlayBtn:first-child {
+    display: none;
+  }
+
+  .cardOverlay {
+    align-items: flex-end;
+    justify-content: flex-end;
+    padding: 6px;
+  }
+
+  .overlayBtn {
+    width: 34px;
+    height: 34px;
+  }
+}
+
+@media (max-width: 480px) {
+  .cardOverlay {
+    padding: 4px;
+  }
+
+  .overlayBtn {
+    width: 32px;
+    height: 32px;
+  }
+}
