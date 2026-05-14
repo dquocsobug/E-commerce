@@ -60,15 +60,17 @@ export default function PostListPage() {
       productId: productId || undefined,
     });
 
-    const result =
-      data?.data?.content ||
-      data?.content ||
-      [];
+    if (Array.isArray(data)) return data;
+    if (Array.isArray(data?.content)) return data.content;
+    if (Array.isArray(data?.data)) return data.data;
+    if (Array.isArray(data?.data?.content)) return data.data.content;
+    if (Array.isArray(data?.data?.data)) return data.data.data;
+    if (Array.isArray(data?.data?.data?.content)) return data.data.data.content;
 
-    return Array.isArray(result) ? result : [];
+    console.log("POST RESPONSE KHÔNG ĐÚNG DẠNG:", data);
+    return [];
   },
 });
-
 const { data: products = [] } = useQuery({
   queryKey: ["products-mentioned"],
   queryFn: async () => {

@@ -8,15 +8,11 @@ export default function AppPrefetch() {
   const queryClient = useQueryClient();
 
   useEffect(() => {
-
-    // Categories
     queryClient.prefetchQuery({
       queryKey: ["categories"],
-      queryFn: async () =>
-        unwrap(await axiosClient.get("/categories")),
+      queryFn: async () => unwrap(await axiosClient.get("/categories")),
     });
 
-    // Products page
     queryClient.prefetchQuery({
       queryKey: ["products", 0, "", [], [0, 50000000], ""],
       queryFn: async () =>
@@ -29,26 +25,6 @@ export default function AppPrefetch() {
           })
         ),
     });
-
-    // Posts page
-queryClient.prefetchQuery({
-  queryKey: ["posts", 0, ""],
-  queryFn: async () => {
-    const res = await axiosClient.get("/posts", {
-      params: {
-        page: 0,
-        size: 12,
-      },
-    });
-
-    const result =
-      res?.data?.data?.content ||
-      res?.data?.content ||
-      [];
-
-    return Array.isArray(result) ? result : [];
-  },
-});
   }, [queryClient]);
 
   return null;
