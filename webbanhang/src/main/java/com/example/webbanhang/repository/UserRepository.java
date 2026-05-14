@@ -27,20 +27,41 @@ public interface UserRepository extends JpaRepository<User, Integer> {
 
     Page<User> findByRoleOrderByCreatedAtDesc(Role role, Pageable pageable);
 
-    @Query("""
-        SELECT u FROM User u
-        WHERE (:keyword IS NULL
-                OR LOWER(u.fullName) LIKE LOWER(CONCAT('%', :keyword, '%'))
-                OR LOWER(u.email) LIKE LOWER(CONCAT('%', :keyword, '%'))
-                OR u.phone LIKE CONCAT('%', :keyword, '%'))
-          AND (:role IS NULL OR u.role = :role)
-        """)
+    @Query(value = """
+    SELECT *
+    FROM Users u
+    WHERE (
+        CAST(:keyword AS text) IS NULL
+        OR LOWER(u.FullName) LIKE LOWER(CONCAT('%', CAST(:keyword AS text), '%'))
+        OR LOWER(u.Email) LIKE LOWER(CONCAT('%', CAST(:keyword AS text), '%'))
+        OR u.Phone LIKE CONCAT('%', CAST(:keyword AS text), '%')
+    )
+    AND (
+        CAST(:role AS text) IS NULL
+        OR u.Role = CAST(:role AS text)
+    )
+    ORDER BY u.CreatedAt DESC
+    """,
+            countQuery = """
+    SELECT COUNT(*)
+    FROM Users u
+    WHERE (
+        CAST(:keyword AS text) IS NULL
+        OR LOWER(u.FullName) LIKE LOWER(CONCAT('%', CAST(:keyword AS text), '%'))
+        OR LOWER(u.Email) LIKE LOWER(CONCAT('%', CAST(:keyword AS text), '%'))
+        OR u.Phone LIKE CONCAT('%', CAST(:keyword AS text), '%')
+    )
+    AND (
+        CAST(:role AS text) IS NULL
+        OR u.Role = CAST(:role AS text)
+    )
+    """,
+            nativeQuery = true)
     Page<User> findWithFilters(
             @Param("keyword") String keyword,
-            @Param("role") Role role,
+            @Param("role") String role,
             Pageable pageable
     );
-
     @Modifying
     @Query("UPDATE User u SET u.role = :role WHERE u.userId = :userId")
     void updateRole(

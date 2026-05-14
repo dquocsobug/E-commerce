@@ -68,12 +68,19 @@ public class UserServiceImpl implements UserService {
     @Override
     @Transactional(readOnly = true)
     public PageResponse<UserResponse> getAllUsers(String keyword, Role role, Pageable pageable) {
+        String keywordFilter = StringUtils.hasText(keyword) ? keyword.trim() : null;
+        String roleFilter = role != null ? role.name() : null;
+
         Page<User> page = userRepository.findWithFilters(
-                StringUtils.hasText(keyword) ? keyword : null,
-                role,
-                pageable);
+                keywordFilter,
+                roleFilter,
+                pageable
+        );
+
         List<UserResponse> content = page.getContent().stream()
-                .map(this::toResponse).toList();
+                .map(this::toResponse)
+                .toList();
+
         return PageResponse.of(page, content);
     }
 
