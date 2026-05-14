@@ -1,4 +1,11 @@
-import { createContext, useCallback, useContext, useMemo, useState } from "react";
+import {
+  createContext,
+  useCallback,
+  useContext,
+  useMemo,
+  useState,
+} from "react";
+import { useQueryClient } from "@tanstack/react-query";
 import { authApi } from "../api";
 import toast from "react-hot-toast";
 
@@ -43,10 +50,13 @@ const normalizeLoginResponse = (res) => {
 };
 
 export const AuthProvider = ({ children }) => {
+  const queryClient = useQueryClient();
+
   const [user, setUser] = useState(safeParseUser);
+  const [token, setToken] = useState(() => localStorage.getItem("token"));
   const [loading, setLoading] = useState(false);
 
-  const isAuthenticated = Boolean(localStorage.getItem("token"));
+  const isAuthenticated = Boolean(token);
 
   const hasRole = useCallback(
     (role) => {
@@ -69,10 +79,14 @@ export const AuthProvider = ({ children }) => {
     setLoading(true);
 
     try {
-      const res = await authApi.login(credentials);
-      const { token, user: loginUser } = normalizeLoginResponse(res);
+      // Xóa cache user cũ trước khi login user mới
+      queryClient.clear();
 
-      if (!token) {
+      const res = await authApi.login(credentials);
+      const { token: loginToken, user: loginUser } =
+        normalizeLoginResponse(res);
+
+      if (!loginToken) {
         console.log("LOGIN RESPONSE =", res);
         throw new Error("Backend không trả về token.");
       }
@@ -82,9 +96,15 @@ export const AuthProvider = ({ children }) => {
         throw new Error("Backend không trả về thông tin user.");
       }
 
-      localStorage.setItem("token", token);
+      localStorage.setItem("token", loginToken);
       localStorage.setItem("user", JSON.stringify(loginUser));
+
+      setToken(loginToken);
       setUser(loginUser);
+
+      // Bắt buộc giỏ hàng tải lại theo user mới
+      queryClient.removeQueries({ queryKey: ["cart"] });
+      queryClient.invalidateQueries({ queryKey: ["cart"] });
 
       toast.success("Đăng nhập thành công!");
       return { success: true, user: loginUser };
@@ -104,9 +124,15 @@ export const AuthProvider = ({ children }) => {
   const logout = useCallback(() => {
     localStorage.removeItem("token");
     localStorage.removeItem("user");
+
+    setToken(null);
     setUser(null);
+
+    // Xóa toàn bộ cache của user cũ, gồm giỏ hàng
+    queryClient.clear();
+
     toast.success("Đã đăng xuất.");
-  }, []);
+  }, [queryClient]);
 
   const updateUser = useCallback((updatedUser) => {
     localStorage.setItem("user", JSON.stringify(updatedUser));
@@ -116,6 +142,7 @@ export const AuthProvider = ({ children }) => {
   const value = useMemo(
     () => ({
       user,
+      token,
       loading,
       isAuthenticated,
       hasRole,
@@ -123,7 +150,7 @@ export const AuthProvider = ({ children }) => {
       logout,
       updateUser,
     }),
-    [user, loading, isAuthenticated, hasRole, logout, updateUser]
+    [user, token, loading, isAuthenticated, hasRole, logout, updateUser]
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

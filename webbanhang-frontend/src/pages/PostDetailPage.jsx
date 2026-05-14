@@ -3,6 +3,7 @@ import { useQuery } from "@tanstack/react-query";
 import { useParams, Link } from "react-router-dom";
 import axiosClient from "../api/axiosClient";
 import styles from "./PostDetailPage.module.css";
+import { useCart } from "../context/CartContext";
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 const formatPrice = (n) => n?.toLocaleString("vi-VN") + "₫";
@@ -44,7 +45,8 @@ const getImageUrl = (url) => {
 const ProductCard = ({ item, onAddToCart }) => {
   const { product, note } = item;
   const hasDiscount = product.discountedPrice && product.discountedPrice < product.price;
-
+  const [adding, setAdding] = useState(false);
+const [added, setAdded] = useState(false);
   return (
     <div className={styles.productCard}>
       <div className={styles.productCardInner}>
@@ -53,11 +55,11 @@ const ProductCard = ({ item, onAddToCart }) => {
             <span className={styles.discountBadge}>-{product.discountPercent}%</span>
           )}
           <img
-  src={getImageUrl(product.mainImageUrl)}
-  alt={product.productName}
-  className={styles.productImage}
-  onError={(e) => (e.currentTarget.src = fallbackImg)}
-/>
+            src={getImageUrl(product.mainImageUrl)}
+            alt={product.productName}
+            className={styles.productImage}
+            onError={(e) => (e.currentTarget.src = fallbackImg)}
+          />
         </div>
         <div className={styles.productInfo}>
           <span className={styles.productCategory}>{product.categoryName}</span>
@@ -75,18 +77,48 @@ const ProductCard = ({ item, onAddToCart }) => {
             )}
           </div>
           <div className={styles.productActions}>
-            <button className={styles.btnBuy} onClick={() => onAddToCart(product)}>
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                <circle cx="9" cy="21" r="1" />
-                <circle cx="20" cy="21" r="1" />
-                <path d="M1 1h4l2.68 13.39a2 2 0 0 0 2 1.61h9.72a2 2 0 0 0 2-1.61L23 6H6" />
-              </svg>
-              Thêm vào giỏ
-            </button>
-            <Link to={`/products/${product.productId}`} className={styles.btnView}>
-              Xem sản phẩm
-            </Link>
-          </div>
+  <button
+    className={`${styles.btnBuy} ${
+      added ? styles.btnBuyAdded : ""
+    }`}
+    disabled={adding || product.stock === 0}
+    onClick={async () => {
+      setAdding(true);
+
+      await onAddToCart(product);
+
+      setAdded(true);
+
+      setTimeout(() => {
+        setAdded(false);
+      }, 1800);
+
+      setAdding(false);
+    }}
+  >
+    <svg
+      width="16"
+      height="16"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+    >
+      <circle cx="9" cy="21" r="1" />
+      <circle cx="20" cy="21" r="1" />
+      <path d="M1 1h4l2.68 13.39a2 2 0 0 0 2 1.61h9.72a2 2 0 0 0 2-1.61L23 6H6" />
+    </svg>
+
+    {added ? "✓ Đã thêm" : "Thêm vào giỏ"}
+  </button>
+
+  <Link
+    to={`/products/${product.productId}`}
+    className={styles.btnView}
+  >
+    Xem sản phẩm
+  </Link>
+</div>
         </div>
       </div>
     </div>
@@ -139,8 +171,8 @@ const CommentItem = ({ comment }) => (
 // ─── Main Page ────────────────────────────────────────────────────────────────
 export default function PostDetail() {
   const { id } = useParams();
-const postId = id;
-
+  const postId = id;
+  const { addToCart } = useCart();
   const [comments, setComments] = useState([]);
   const [commentPage, setCommentPage] = useState(0);
   const [commentTotal, setCommentTotal] = useState(0);
@@ -228,16 +260,8 @@ setCommentLast(data?.last ?? true);
 
   // Add to cart — POST /cart/items
   const handleAddToCart = async (product) => {
-    try {
-      await axiosClient.post("/cart/items", {
-        productId: product.productId,
-        quantity: 1,
-      });
-      showToast(`Đã thêm "${product.productName}" vào giỏ hàng!`, "success");
-    } catch {
-      showToast("Bạn cần đăng nhập để thêm vào giỏ hàng.", "error");
-    }
-  };
+  await addToCart(product.productId, 1);
+};
 
   // Submit comment — POST /comments
   const handleSubmitComment = async (e) => {

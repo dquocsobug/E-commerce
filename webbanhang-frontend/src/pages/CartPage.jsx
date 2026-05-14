@@ -1,7 +1,8 @@
 import { useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Link, useNavigate } from "react-router-dom";
-import { cartApi, productApi } from "../api";
+import { productApi } from "../api";
+import { useCart } from "../context/CartContext";
 import { formatVND } from "../utils/format";
 import styles from "./CartPage.module.css";
 
@@ -16,53 +17,11 @@ export default function CartPage() {
   const [updatingId, setUpdatingId] = useState(null);
 
   const {
-    data: cart = null,
-    isLoading,
-    refetch: refetchCart,
-  } = useQuery({
-    queryKey: ["cart"],
-    queryFn: async () => {
-      const res = await cartApi.getCart();
-      const cartData = res?.data || res;
-
-      const enrichedItems = await Promise.all(
-        (cartData.items || []).map(async (item) => {
-          try {
-            const productRes = await productApi.getById(item.product.productId);
-            const fullProduct = productRes?.data || productRes;
-
-            const finalPrice =
-              fullProduct.discountedPrice &&
-              fullProduct.discountedPrice < fullProduct.price
-                ? fullProduct.discountedPrice
-                : fullProduct.price;
-
-            return {
-              ...item,
-              product: {
-                ...item.product,
-                ...fullProduct,
-              },
-              subtotal: finalPrice * item.quantity,
-            };
-          } catch {
-            return item;
-          }
-        })
-      );
-
-      const newTotalAmount = enrichedItems.reduce(
-        (sum, item) => sum + Number(item.subtotal || 0),
-        0
-      );
-
-      return {
-        ...cartData,
-        items: enrichedItems,
-        totalAmount: newTotalAmount,
-      };
-    },
-  });
+  cart,
+  cartLoading: isLoading,
+  updateCartItem,
+  removeCartItem,
+} = useCart();
 
   const { data: featured = [] } = useQuery({
     queryKey: ["featured-products-cart"],
@@ -79,7 +38,8 @@ export default function CartPage() {
     cart?.totalItems || items.reduce((sum, i) => sum + i.quantity, 0);
 
   const totalAmount =
-    cart?.totalAmount || items.reduce((sum, i) => sum + i.subtotal, 0);
+  cart?.totalAmount ||
+  items.reduce((sum, i) => sum + Number(i.subtotal || 0), 0);
 
   const freeShipTarget = 6600000;
   const remainForFreeShip = Math.max(0, freeShipTarget - totalAmount);
@@ -95,30 +55,24 @@ export default function CartPage() {
   );
 
   const handleUpdateQuantity = async (cartItemId, nextQuantity) => {
-    if (nextQuantity < 1) return;
+  if (nextQuantity < 1) return;
 
-    try {
-      setUpdatingId(cartItemId);
-      await cartApi.updateItem(cartItemId, nextQuantity);
-      await refetchCart();
-    } catch (err) {
-      console.error("Lỗi cập nhật số lượng:", err);
-    } finally {
-      setUpdatingId(null);
-    }
-  };
+  try {
+    setUpdatingId(cartItemId);
+    await updateCartItem(cartItemId, nextQuantity);
+  } finally {
+    setUpdatingId(null);
+  }
+};
 
   const handleRemove = async (cartItemId) => {
-    try {
-      setUpdatingId(cartItemId);
-      await cartApi.removeItem(cartItemId);
-      await refetchCart();
-    } catch (err) {
-      console.error("Lỗi xóa sản phẩm:", err);
-    } finally {
-      setUpdatingId(null);
-    }
-  };
+  try {
+    setUpdatingId(cartItemId);
+    await removeCartItem(cartItemId);
+  } finally {
+    setUpdatingId(null);
+  }
+};
 
   if (isLoading) {
     return (

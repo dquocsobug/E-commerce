@@ -30,53 +30,65 @@ export const CartProvider = ({ children }) => {
 
   // ✅ Helper: tính lại totalItems và totalAmount từ items
   const recalcCart = (items = []) => ({
-    totalItems: items.reduce((sum, i) => sum + i.quantity, 0),
-    totalAmount: items.reduce((sum, i) => sum + i.price * i.quantity, 0),
-  });
+  totalItems: items.reduce((sum, i) => sum + i.quantity, 0),
+  totalAmount: items.reduce((sum, i) => {
+    const price = i.product?.discountedPrice ?? i.product?.price ?? 0;
+    return sum + price * i.quantity;
+  }, 0),
+});
 
   // ============================================================
   // ADD TO CART — Optimistic, KHÔNG invalidate
   // ============================================================
   const addToCart = async (productId, quantity = 1) => {
-    if (!isAuthenticated) {
-      toast.error("Vui lòng đăng nhập để thêm vào giỏ hàng.");
-      return false;
+  if (!isAuthenticated) {
+    toast.error("Vui lòng đăng nhập để thêm vào giỏ hàng.");
+    return false;
+  }
+
+  const previousCart = queryClient.getQueryData(["cart"]);
+
+  queryClient.setQueryData(["cart"], (old) => {
+    if (!old) return old;
+
+    const existing = old.items?.find(
+      (i) => i.product?.productId === productId
+    );
+
+    const updatedItems = existing
+      ? old.items.map((i) =>
+          i.product?.productId === productId
+            ? { ...i, quantity: i.quantity + quantity }
+            : i
+        )
+      : [...(old.items || []), { productId, quantity, _optimistic: true }];
+
+    return { ...old, items: updatedItems, ...recalcCart(updatedItems) };
+  });
+
+  // ✅ Hiện thông báo ngay lập tức, không chờ API
+  toast.success("Đã thêm vào giỏ hàng!");
+
+  try {
+    const updatedCart = await cartApi.addItem(productId, quantity);
+
+    if (updatedCart) {
+      queryClient.setQueryData(["cart"], updatedCart);
     }
 
-    const previousCart = queryClient.getQueryData(["cart"]);
+    return true;
+  } catch (error) {
+    queryClient.setQueryData(["cart"], previousCart);
 
-    // ✅ Update UI ngay lập tức
-    queryClient.setQueryData(["cart"], (old) => {
-      if (!old) return old;
-      const existing = old.items?.find((i) => i.productId === productId);
-      const updatedItems = existing
-        ? old.items.map((i) =>
-            i.productId === productId
-              ? { ...i, quantity: i.quantity + quantity }
-              : i
-          )
-        : [...(old.items || []), { productId, quantity, _optimistic: true }];
+    toast.error(
+      error?.response?.data?.message ||
+        error?.message ||
+        "Không thể thêm sản phẩm!"
+    );
 
-      return { ...old, items: updatedItems, ...recalcCart(updatedItems) };
-    });
-
-    try {
-      // Gọi API — nhận về cart mới nhất từ server
-      const updatedCart = await cartApi.addItem(productId, quantity);
-
-      // ✅ Sync data chính xác từ server (KHÔNG refetch thêm)
-      if (updatedCart) {
-        queryClient.setQueryData(["cart"], updatedCart);
-      }
-
-      toast.success("Đã thêm vào giỏ hàng!");
-      return true;
-    } catch (error) {
-      queryClient.setQueryData(["cart"], previousCart); // Rollback
-      toast.error(error.message || "Không thể thêm sản phẩm!");
-      return false;
-    }
-  };
+    return false;
+  }
+};
 
   // ============================================================
   // UPDATE — Optimistic, KHÔNG invalidate
@@ -87,8 +99,8 @@ export const CartProvider = ({ children }) => {
     queryClient.setQueryData(["cart"], (old) => {
       if (!old) return old;
       const updatedItems = old.items.map((i) =>
-        i.id === cartItemId ? { ...i, quantity } : i
-      );
+  i.cartItemId === cartItemId ? { ...i, quantity } : i
+);
       return { ...old, items: updatedItems, ...recalcCart(updatedItems) };
     });
 
@@ -109,7 +121,9 @@ export const CartProvider = ({ children }) => {
 
     queryClient.setQueryData(["cart"], (old) => {
       if (!old) return old;
-      const updatedItems = old.items.filter((i) => i.id !== cartItemId);
+      const updatedItems = old.items.filter(
+  (i) => i.cartItemId !== cartItemId
+);
       return { ...old, items: updatedItems, ...recalcCart(updatedItems) };
     });
 
