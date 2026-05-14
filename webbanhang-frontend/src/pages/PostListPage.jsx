@@ -52,6 +52,7 @@ export default function PostListPage() {
 
   const { data: posts = [], isLoading: postsLoading } = useQuery({
   queryKey: ["posts", 0, productId || ""],
+
   queryFn: async () => {
     const data = await postApi.getAll({
       page: 0,
@@ -60,7 +61,9 @@ export default function PostListPage() {
     });
 
     const result =
-      data?.content || data?.data?.content || data?.data || [];
+      data?.data?.content ||
+      data?.content ||
+      [];
 
     return Array.isArray(result) ? result : [];
   },

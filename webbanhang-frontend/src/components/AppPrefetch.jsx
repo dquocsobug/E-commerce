@@ -31,19 +31,24 @@ export default function AppPrefetch() {
     });
 
     // Posts page
-    queryClient.prefetchQuery({
-      queryKey: ["posts", 0, ""],
-      queryFn: async () =>
-        unwrap(
-          await axiosClient.get("/posts", {
-            params: {
-              page: 0,
-              size: 12,
-            },
-          })
-        ),
+queryClient.prefetchQuery({
+  queryKey: ["posts", 0, ""],
+  queryFn: async () => {
+    const res = await axiosClient.get("/posts", {
+      params: {
+        page: 0,
+        size: 12,
+      },
     });
 
+    const result =
+      res?.data?.data?.content ||
+      res?.data?.content ||
+      [];
+
+    return Array.isArray(result) ? result : [];
+  },
+});
   }, [queryClient]);
 
   return null;
