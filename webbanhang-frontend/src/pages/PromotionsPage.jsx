@@ -44,6 +44,16 @@ const getDiscountPercent = (p) => {
 
 const getFinalPrice = (p) => p?.discountedPrice || p?.price || 0;
 
+const toArray = (data) => {
+  const result =
+    data?.content ||
+    data?.data?.content ||
+    data?.data ||
+    data;
+
+  return Array.isArray(result) ? result : [];
+};
+
 export default function PromotionsPage() {
   const { addToCart } = useCart();
   const [flashTime, setFlashTime] = useState({
@@ -88,7 +98,7 @@ export default function PromotionsPage() {
   queryKey: ["promotion-products"],
   queryFn: async () => {
     const data = await productApi.getAll({ page: 0, size: 20 });
-    return data?.content || data?.data?.content || data?.data || [];
+    return toArray(data);
   },
 });
 
@@ -96,7 +106,7 @@ const { data: promotions = [] } = useQuery({
   queryKey: ["active-promotions"],
   queryFn: async () => {
     const data = await promotionApi.getActive();
-    return Array.isArray(data) ? data : data?.data || [];
+    return toArray(data);
   },
 });
 
@@ -104,7 +114,7 @@ const { data: posts = [] } = useQuery({
   queryKey: ["promotion-posts"],
   queryFn: async () => {
     const data = await postApi.getAll({ page: 0, size: 4 });
-    return data?.content || data?.data?.content || data?.data || [];
+    return toArray(data);
   },
 });
 
