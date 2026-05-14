@@ -21,6 +21,8 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
 import org.springframework.web.multipart.MultipartFile;
+import org.springframework.cache.annotation.CacheEvict;
+import org.springframework.cache.annotation.Cacheable;
 
 import java.math.BigDecimal;
 import java.math.RoundingMode;
@@ -240,6 +242,14 @@ public class ProductServiceImpl implements ProductService {
     }
 
     @Override
+    @Cacheable(
+            value = "products",
+            key = "T(java.util.Objects).toString(#keyword, '') + '-' " +
+                    "+ T(java.util.Objects).toString(#categoryId, '') + '-' " +
+                    "+ T(java.util.Objects).toString(#minPrice, '') + '-' " +
+                    "+ T(java.util.Objects).toString(#maxPrice, '') + '-' " +
+                    "+ #pageable.pageNumber + '-' + #pageable.pageSize + '-' + #pageable.sort.toString()"
+    )
     @Transactional(readOnly = true)
     public PageResponse<ProductResponse> getAll(String keyword,
                                                 Integer categoryId,
@@ -274,6 +284,7 @@ public class ProductServiceImpl implements ProductService {
     }
 
     @Override
+    @Cacheable(value = "productDetail", key = "#productId")
     @Transactional(readOnly = true)
     public ProductResponse getById(Integer productId) {
         Product product = productRepository.findByProductIdAndIsActiveTrue(productId)
@@ -283,6 +294,7 @@ public class ProductServiceImpl implements ProductService {
     }
 
     @Override
+    @Cacheable(value = "ratingStats", key = "#productId")
     @Transactional(readOnly = true)
     public ProductRatingStatsResponse getRatingStats(Integer productId) {
         if (!productRepository.existsByProductIdAndIsActiveTrue(productId)) {
@@ -310,6 +322,10 @@ public class ProductServiceImpl implements ProductService {
     }
 
     @Override
+    @Cacheable(
+            value = "featuredProducts",
+            key = "#pageable.pageNumber + '-' + #pageable.pageSize + '-' + #pageable.sort.toString()"
+    )
     @Transactional(readOnly = true)
     public List<ProductResponse> getFeaturedProducts(Pageable pageable) {
         List<Integer> ids = productRepository.findFeaturedProductIds(pageable);
@@ -330,6 +346,7 @@ public class ProductServiceImpl implements ProductService {
     }
 
     @Override
+    @Cacheable(value = "saleProducts")
     @Transactional(readOnly = true)
     public List<ProductResponse> getProductsWithActivePromotion() {
         List<Integer> ids = productRepository.findProductIdsWithActivePromotion();
@@ -350,6 +367,10 @@ public class ProductServiceImpl implements ProductService {
     }
 
     @Override
+    @CacheEvict(
+            value = {"products", "productDetail", "featuredProducts", "saleProducts", "ratingStats"},
+            allEntries = true
+    )
     @Transactional
     public ProductResponse create(ProductRequest request) {
         Category category = categoryRepository.findById(request.getCategoryId())
@@ -379,6 +400,10 @@ public class ProductServiceImpl implements ProductService {
     }
 
     @Override
+    @CacheEvict(
+            value = {"products", "productDetail", "featuredProducts", "saleProducts", "ratingStats"},
+            allEntries = true
+    )
     @Transactional
     public void importFromExcel(MultipartFile file) {
         if (file == null || file.isEmpty()) {
@@ -466,6 +491,10 @@ public class ProductServiceImpl implements ProductService {
     }
 
     @Override
+    @CacheEvict(
+            value = {"products", "productDetail", "featuredProducts", "saleProducts", "ratingStats"},
+            allEntries = true
+    )
     @Transactional
     public ProductResponse update(Integer productId, ProductRequest request) {
         Product product = productRepository.findById(productId)
@@ -484,6 +513,10 @@ public class ProductServiceImpl implements ProductService {
     }
 
     @Override
+    @CacheEvict(
+            value = {"products", "productDetail", "featuredProducts", "saleProducts", "ratingStats"},
+            allEntries = true
+    )
     @Transactional
     public void delete(Integer productId) {
         Product product = productRepository.findById(productId)
@@ -496,6 +529,10 @@ public class ProductServiceImpl implements ProductService {
     }
 
     @Override
+    @CacheEvict(
+            value = {"products", "productDetail", "featuredProducts", "saleProducts", "ratingStats"},
+            allEntries = true
+    )
     @Transactional
     public ProductResponse addImage(Integer productId, ProductImageRequest request) {
         Product product = productRepository.findById(productId)
@@ -518,6 +555,10 @@ public class ProductServiceImpl implements ProductService {
     }
 
     @Override
+    @CacheEvict(
+            value = {"products", "productDetail", "featuredProducts", "saleProducts", "ratingStats"},
+            allEntries = true
+    )
     @Transactional
     public void deleteImage(Integer productId, Integer imageId) {
         ProductImage image = productImageRepository.findById(imageId)
@@ -531,6 +572,10 @@ public class ProductServiceImpl implements ProductService {
     }
 
     @Override
+    @CacheEvict(
+            value = {"products", "productDetail", "featuredProducts", "saleProducts", "ratingStats"},
+            allEntries = true
+    )
     @Transactional
     public void setMainImage(Integer productId, Integer imageId) {
         if (!productRepository.existsById(productId)) {

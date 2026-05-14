@@ -11,6 +11,8 @@ import com.example.webbanhang.repository.ProductRepository;
 import com.example.webbanhang.service.CategoryService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.cache.annotation.CacheEvict;
+import org.springframework.cache.annotation.Cacheable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -52,6 +54,7 @@ public class CategoryServiceImpl implements CategoryService {
 
     @Override
     @Transactional(readOnly = true)
+    @Cacheable(value = "categories")
     public List<CategoryResponse> getAll() {
         List<Category> categories = categoryRepository.findAll();
         Map<Integer, Long> countMap = getProductCountMap();
@@ -66,6 +69,7 @@ public class CategoryServiceImpl implements CategoryService {
 
     @Override
     @Transactional(readOnly = true)
+    @Cacheable(value = "categoryDetail", key = "#categoryId")
     public CategoryResponse getById(Integer categoryId) {
         Category category = categoryRepository.findById(categoryId)
                 .orElseThrow(() -> new ResourceNotFoundException("Category", categoryId));
@@ -77,6 +81,17 @@ public class CategoryServiceImpl implements CategoryService {
 
     @Override
     @Transactional
+    @CacheEvict(
+            value = {
+                    "categories",
+                    "categoryDetail",
+                    "products",
+                    "productDetail",
+                    "featuredProducts",
+                    "saleProducts"
+            },
+            allEntries = true
+    )
     public CategoryResponse create(CategoryRequest request) {
         if (categoryRepository.existsByCategoryName(request.getCategoryName())) {
             throw new ConflictException("Tên danh mục '" + request.getCategoryName() + "' đã tồn tại");
@@ -94,6 +109,17 @@ public class CategoryServiceImpl implements CategoryService {
 
     @Override
     @Transactional
+    @CacheEvict(
+            value = {
+                    "categories",
+                    "categoryDetail",
+                    "products",
+                    "productDetail",
+                    "featuredProducts",
+                    "saleProducts"
+            },
+            allEntries = true
+    )
     public CategoryResponse update(Integer categoryId, CategoryRequest request) {
         Category category = categoryRepository.findById(categoryId)
                 .orElseThrow(() -> new ResourceNotFoundException("Category", categoryId));
@@ -116,6 +142,17 @@ public class CategoryServiceImpl implements CategoryService {
 
     @Override
     @Transactional
+    @CacheEvict(
+            value = {
+                    "categories",
+                    "categoryDetail",
+                    "products",
+                    "productDetail",
+                    "featuredProducts",
+                    "saleProducts"
+            },
+            allEntries = true
+    )
     public void delete(Integer categoryId) {
         if (!categoryRepository.existsById(categoryId)) {
             throw new ResourceNotFoundException("Category", categoryId);

@@ -16,12 +16,13 @@ import com.example.webbanhang.service.PostService;
 import com.example.webbanhang.service.VoucherService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.cache.annotation.CacheEvict;
+import org.springframework.cache.annotation.Cacheable;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
-import java.util.stream.Collectors;
 
 import java.time.LocalDateTime;
 import java.util.Collections;
@@ -312,6 +313,10 @@ public class PostServiceImpl implements PostService {
 
     @Override
     @Transactional(readOnly = true)
+    @Cacheable(
+            value = "posts",
+            key = "'published-' + (#keyword == null ? '' : #keyword) + '-' + #pageable.pageNumber + '-' + #pageable.pageSize + '-' + #pageable.sort.toString()"
+    )
     public PageResponse<PostSummaryResponse> getPublishedPosts(String keyword, Pageable pageable) {
         Page<Post> page = StringUtils.hasText(keyword)
                 ? postRepository.searchPublished(keyword, pageable)
@@ -322,6 +327,7 @@ public class PostServiceImpl implements PostService {
 
     @Override
     @Transactional(readOnly = true)
+    @Cacheable(value = "postDetail", key = "#postId")
     public PostResponse getPublishedPost(Integer postId) {
         Post post = postRepository.findById(postId)
                 .orElseThrow(() -> new ResourceNotFoundException("Post", postId));
@@ -356,6 +362,7 @@ public class PostServiceImpl implements PostService {
 
     @Override
     @Transactional
+    @CacheEvict(value = {"posts", "postDetail"}, allEntries = true)
     public PostResponse create(Integer userId, PostRequest request) {
         assertCanWritePost(userId);
 
@@ -387,6 +394,7 @@ public class PostServiceImpl implements PostService {
 
     @Override
     @Transactional
+    @CacheEvict(value = {"posts", "postDetail"}, allEntries = true)
     public PostResponse update(Integer userId, Integer postId, PostRequest request) {
         Post post = postRepository.findById(postId)
                 .orElseThrow(() -> new ResourceNotFoundException("Post", postId));
@@ -417,6 +425,7 @@ public class PostServiceImpl implements PostService {
 
     @Override
     @Transactional
+    @CacheEvict(value = {"posts", "postDetail"}, allEntries = true)
     public PostResponse submit(Integer userId, Integer postId) {
         Post post = postRepository.findById(postId)
                 .orElseThrow(() -> new ResourceNotFoundException("Post", postId));
@@ -438,6 +447,7 @@ public class PostServiceImpl implements PostService {
 
     @Override
     @Transactional
+    @CacheEvict(value = {"posts", "postDetail"}, allEntries = true)
     public void delete(Integer userId, Integer postId) {
         Post post = postRepository.findById(postId)
                 .orElseThrow(() -> new ResourceNotFoundException("Post", postId));
@@ -469,6 +479,7 @@ public class PostServiceImpl implements PostService {
 
     @Override
     @Transactional
+    @CacheEvict(value = {"posts", "postDetail"}, allEntries = true)
     public PostResponse adminUpdate(Integer postId, PostRequest request) {
         Post post = postRepository.findById(postId)
                 .orElseThrow(() -> new ResourceNotFoundException("Post", postId));
@@ -494,6 +505,7 @@ public class PostServiceImpl implements PostService {
 
     @Override
     @Transactional
+    @CacheEvict(value = {"posts", "postDetail"}, allEntries = true)
     public PostResponse reviewPost(Integer postId, ReviewPostRequest request) {
         Post post = postRepository.findById(postId)
                 .orElseThrow(() -> new ResourceNotFoundException("Post", postId));
@@ -535,6 +547,7 @@ public class PostServiceImpl implements PostService {
 
     @Override
     @Transactional
+    @CacheEvict(value = {"posts", "postDetail"}, allEntries = true)
     public void adminDelete(Integer postId) {
         Post post = postRepository.findById(postId)
                 .orElseThrow(() -> new ResourceNotFoundException("Post", postId));

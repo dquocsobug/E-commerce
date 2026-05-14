@@ -18,6 +18,8 @@ import com.example.webbanhang.repository.PromotionRepository;
 import com.example.webbanhang.service.PromotionService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.cache.annotation.CacheEvict;
+import org.springframework.cache.annotation.Cacheable;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
@@ -136,6 +138,7 @@ public class PromotionServiceImpl implements PromotionService {
 
     @Override
     @Transactional(readOnly = true)
+    @Cacheable(value = "promotions", key = "'active'")
     public List<PromotionResponse> getActivePromotions() {
         List<Promotion> promotions = promotionRepository.findActivePromotions(LocalDateTime.now());
         return toResponseList(promotions);
@@ -143,12 +146,17 @@ public class PromotionServiceImpl implements PromotionService {
 
     @Override
     @Transactional(readOnly = true)
+    @Cacheable(value = "promotions", key = "'detail-' + #promotionId")
     public PromotionResponse getById(Integer promotionId) {
         return toResponse(findById(promotionId));
     }
 
     @Override
     @Transactional(readOnly = true)
+    @Cacheable(
+            value = "promotions",
+            key = "'all-' + (#keyword == null ? '' : #keyword) + '-' + #pageable.pageNumber + '-' + #pageable.pageSize + '-' + #pageable.sort.toString()"
+    )
     public PageResponse<PromotionResponse> getAll(String keyword, Pageable pageable) {
         Page<Promotion> page = StringUtils.hasText(keyword)
                 ? promotionRepository.findByPromotionNameContainingIgnoreCase(keyword, pageable)
@@ -161,6 +169,16 @@ public class PromotionServiceImpl implements PromotionService {
 
     @Override
     @Transactional
+    @CacheEvict(
+            value = {
+                    "promotions",
+                    "products",
+                    "productDetail",
+                    "featuredProducts",
+                    "saleProducts"
+            },
+            allEntries = true
+    )
     public PromotionResponse create(PromotionRequest request) {
         validateDates(request.getStartDate(), request.getEndDate());
 
@@ -183,6 +201,16 @@ public class PromotionServiceImpl implements PromotionService {
 
     @Override
     @Transactional
+    @CacheEvict(
+            value = {
+                    "promotions",
+                    "products",
+                    "productDetail",
+                    "featuredProducts",
+                    "saleProducts"
+            },
+            allEntries = true
+    )
     public PromotionResponse update(Integer promotionId, PromotionRequest request) {
         Promotion promotion = findById(promotionId);
 
@@ -202,6 +230,16 @@ public class PromotionServiceImpl implements PromotionService {
 
     @Override
     @Transactional
+    @CacheEvict(
+            value = {
+                    "promotions",
+                    "products",
+                    "productDetail",
+                    "featuredProducts",
+                    "saleProducts"
+            },
+            allEntries = true
+    )
     public void delete(Integer promotionId) {
         if (!promotionRepository.existsById(promotionId)) {
             throw new ResourceNotFoundException("Promotion", promotionId);
@@ -215,6 +253,16 @@ public class PromotionServiceImpl implements PromotionService {
 
     @Override
     @Transactional
+    @CacheEvict(
+            value = {
+                    "promotions",
+                    "products",
+                    "productDetail",
+                    "featuredProducts",
+                    "saleProducts"
+            },
+            allEntries = true
+    )
     public PromotionResponse assignProducts(AssignProductPromotionRequest request) {
         Promotion promotion = findById(request.getPromotionId());
 
@@ -242,6 +290,16 @@ public class PromotionServiceImpl implements PromotionService {
 
     @Override
     @Transactional
+    @CacheEvict(
+            value = {
+                    "promotions",
+                    "products",
+                    "productDetail",
+                    "featuredProducts",
+                    "saleProducts"
+            },
+            allEntries = true
+    )
     public void removeProduct(Integer promotionId, Integer productId) {
         if (!promotionRepository.existsById(promotionId)) {
             throw new ResourceNotFoundException("Promotion", promotionId);

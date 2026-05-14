@@ -19,6 +19,8 @@ import com.example.webbanhang.repository.ReviewRepository;
 import com.example.webbanhang.repository.UserRepository;
 import com.example.webbanhang.service.ReviewService;
 import lombok.RequiredArgsConstructor;
+import org.springframework.cache.annotation.CacheEvict;
+import org.springframework.cache.annotation.Cacheable;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
@@ -103,6 +105,10 @@ public class ReviewServiceImpl implements ReviewService {
 
     @Override
     @Transactional(readOnly = true)
+    @Cacheable(
+            value = "reviews",
+            key = "'product-' + #productId + '-' + #pageable.pageNumber + '-' + #pageable.pageSize + '-' + #pageable.sort.toString()"
+    )
     public PageResponse<ReviewResponse> getByProduct(Integer productId, Pageable pageable) {
         if (!productRepository.existsById(productId)) {
             throw new ResourceNotFoundException("Product", productId);
@@ -129,6 +135,10 @@ public class ReviewServiceImpl implements ReviewService {
 
     @Override
     @Transactional
+    @CacheEvict(
+            value = {"reviews", "products", "productDetail", "ratingStats"},
+            allEntries = true
+    )
     public ReviewResponse create(Integer userId, ReviewRequest request) {
         if (!orderDetailRepository.hasPurchasedAndDelivered(userId, request.getProductId())) {
             throw new BadRequestException("Bạn chỉ có thể đánh giá sản phẩm đã mua và đã nhận hàng");
@@ -158,6 +168,10 @@ public class ReviewServiceImpl implements ReviewService {
 
     @Override
     @Transactional
+    @CacheEvict(
+            value = {"reviews", "products", "productDetail", "ratingStats"},
+            allEntries = true
+    )
     public ReviewResponse update(Integer userId, Integer reviewId, ReviewRequest request) {
         Review review = reviewRepository.findByIdWithUserAndProduct(reviewId)
                 .orElseThrow(() -> new ResourceNotFoundException("Review", reviewId));
@@ -176,6 +190,10 @@ public class ReviewServiceImpl implements ReviewService {
 
     @Override
     @Transactional
+    @CacheEvict(
+            value = {"reviews", "products", "productDetail", "ratingStats"},
+            allEntries = true
+    )
     public void delete(Integer userId, Integer reviewId, boolean isAdmin) {
         Review review = reviewRepository.findByIdWithUserAndProduct(reviewId)
                 .orElseThrow(() -> new ResourceNotFoundException("Review", reviewId));
