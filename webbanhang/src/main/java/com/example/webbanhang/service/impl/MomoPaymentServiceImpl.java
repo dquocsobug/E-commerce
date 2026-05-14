@@ -91,6 +91,7 @@ public class MomoPaymentServiceImpl implements MomoPaymentService {
             body.put("lang", "vi");
             body.put("extraData", extraData);
             body.put("requestType", requestType);
+            body.put("autoCapture", true);
             body.put("signature", signature);
 
             HttpHeaders headers = new HttpHeaders();
