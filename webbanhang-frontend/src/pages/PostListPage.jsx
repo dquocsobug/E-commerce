@@ -81,10 +81,13 @@ const { data: products = [] } = useQuery({
   },
 });
 
-  const spotlight = posts[0];
+  const safePosts = Array.isArray(posts) ? posts : [];
+const safeProducts = Array.isArray(products) ? products : [];
 
-  const filteredPosts = useMemo(() => {
-  let result = posts.filter((p) => p.postId !== spotlight?.postId);
+const spotlight = safePosts[0];
+
+const filteredPosts = useMemo(() => {
+  let result = safePosts.filter((p) => p.postId !== spotlight?.postId);
 
   if (authorFilter === "ADMIN") {
     result = result.filter((p) => !isCustomerPost(p));
@@ -103,7 +106,7 @@ const { data: products = [] } = useQuery({
   }
 
   return result;
-}, [posts, spotlight, authorFilter, tagFilter, sort]);
+}, [safePosts, spotlight, authorFilter, tagFilter, sort]);
   if (postsLoading) {
   return (
     <main className={styles.page}>
@@ -158,7 +161,7 @@ const { data: products = [] } = useQuery({
           </div>
 
           <aside className={styles.sidebar}>
-            <MostMentioned products={products} />
+            <MostMentioned products={safeProducts} />
 
             <div className={styles.hotBox}>
               <h4>Chủ đề đang hot</h4>
@@ -353,7 +356,8 @@ function ArticleCard({ post }) {
 }
 
 function MostMentioned({ products }) {
-  const data = products.slice(0, 3);
+  const safeProducts = Array.isArray(products) ? products : [];
+  const data = safeProducts.slice(0, 3);
 
   return (
     <div className={styles.mentioned}>

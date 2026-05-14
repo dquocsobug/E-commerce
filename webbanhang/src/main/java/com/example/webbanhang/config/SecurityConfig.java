@@ -173,7 +173,7 @@ public class SecurityConfig {
                         .requestMatchers(HttpMethod.GET, "/actuator/health/**").permitAll()
 
                         .requestMatchers(HttpMethod.GET, "/ping").permitAll()
-                        
+
                         .anyRequest().authenticated()
                 )
 
