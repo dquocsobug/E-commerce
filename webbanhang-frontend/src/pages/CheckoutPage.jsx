@@ -87,52 +87,6 @@ useEffect(() => {
 }, []);
   const orderCode = useMemo(() => `DH${Date.now()}`, []);
 
-  const subtotal = Number(
-  items.reduce((sum, item) => sum + Number(item.subtotal || 0), 0)
-);
-
-  const shippingFee = shippingMethod === "FAST" ? 45000 : 0;
-  const discountAmount = Number(appliedVoucher?.discountAmount || 0);
-const total = Math.max(subtotal + shippingFee - discountAmount, 0);
-
-  const orderName = useMemo(() => {
-    if (!items.length) return "Thanh toan don hang";
-
-    const firstName = items[0]?.product?.productName || "San pham";
-    const moreCount = items.length - 1;
-
-    return moreCount > 0
-      ? `${firstName} va ${moreCount} san pham khac`
-      : firstName;
-  }, [items]);
-
-  const transferContent = `${orderCode} ${orderName}`;
-
-  const qrUrl = createVietQrUrl({
-    amount: total,
-    content: transferContent,
-  });
-
-  const firstItem = items[0];
-
-  const productReasons = useMemo(() => {
-    const name = firstItem?.product?.productName || "sản phẩm";
-    return [
-      {
-        title: "Sản phẩm được tuyển chọn",
-        desc: `${name} phù hợp với nhu cầu sử dụng thực tế và có thông tin giá rõ ràng.`,
-      },
-      {
-        title: "Bảo hành rõ ràng",
-        desc: "Sản phẩm công nghệ chính hãng, hỗ trợ sau bán hàng và đổi trả theo chính sách.",
-      },
-      {
-        title: "Thanh toán an toàn",
-        desc: "Thông tin đơn hàng được xử lý bảo mật trước khi chuyển sang bước xác nhận.",
-      },
-    ];
-  }, [firstItem]);
-
   const {
   data: checkoutData,
   isLoading,
@@ -226,6 +180,53 @@ const items = isDirect
   ? cart.items
   : savedItems;
 
+  const subtotal = Number(
+  items.reduce((sum, item) => sum + Number(item.subtotal || 0), 0)
+);
+
+  const shippingFee = shippingMethod === "FAST" ? 45000 : 0;
+  const discountAmount = Number(appliedVoucher?.discountAmount || 0);
+const total = Math.max(subtotal + shippingFee - discountAmount, 0);
+
+  const orderName = useMemo(() => {
+    if (!items.length) return "Thanh toan don hang";
+
+    const firstName = items[0]?.product?.productName || "San pham";
+    const moreCount = items.length - 1;
+
+    return moreCount > 0
+      ? `${firstName} va ${moreCount} san pham khac`
+      : firstName;
+  }, [items]);
+
+  const transferContent = `${orderCode} ${orderName}`;
+
+  const qrUrl = createVietQrUrl({
+    amount: total,
+    content: transferContent,
+  });
+
+  const firstItem = items[0];
+
+  const productReasons = useMemo(() => {
+    const name = firstItem?.product?.productName || "sản phẩm";
+    return [
+      {
+        title: "Sản phẩm được tuyển chọn",
+        desc: `${name} phù hợp với nhu cầu sử dụng thực tế và có thông tin giá rõ ràng.`,
+      },
+      {
+        title: "Bảo hành rõ ràng",
+        desc: "Sản phẩm công nghệ chính hãng, hỗ trợ sau bán hàng và đổi trả theo chính sách.",
+      },
+      {
+        title: "Thanh toán an toàn",
+        desc: "Thông tin đơn hàng được xử lý bảo mật trước khi chuyển sang bước xác nhận.",
+      },
+    ];
+  }, [firstItem]);
+
+  
 useEffect(() => {
   if (!user) return;
 
