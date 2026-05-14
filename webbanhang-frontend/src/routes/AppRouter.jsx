@@ -52,9 +52,9 @@ const router = createBrowserRouter([
     element: withSuspense(RegisterPage),
   },
   {
-  path: "/payment/momo-return",
+  path: "/payment/momo/result",
   element: withSuspense(PaymentResultPage),
-  },
+},
 
   {
     path: "/admin",
