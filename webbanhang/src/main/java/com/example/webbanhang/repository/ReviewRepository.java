@@ -32,6 +32,14 @@ public interface ReviewRepository extends JpaRepository<Review, Integer> {
     Double calculateAverageRating(@Param("productId") Integer productId);
 
     @Query("""
+        SELECT r.product.productId, COALESCE(AVG(CAST(r.rating AS double)), 0.0), COUNT(r)
+        FROM Review r
+        WHERE r.product.productId IN :productIds
+        GROUP BY r.product.productId
+        """)
+    List<Object[]> calculateRatingStatsByProductIds(@Param("productIds") List<Integer> productIds);
+
+    @Query("""
         SELECT r.rating, COUNT(r)
         FROM Review r
         WHERE r.product.productId = :productId

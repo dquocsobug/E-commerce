@@ -39,11 +39,27 @@ public interface PromotionRepository extends JpaRepository<Promotion, Integer> {
     @Query("""
         SELECT pp.promotion FROM ProductPromotion pp
         WHERE pp.product.productId = :productId
+          AND pp.promotion.isActive = true
           AND (pp.promotion.startDate IS NULL OR pp.promotion.startDate <= :now)
           AND (pp.promotion.endDate IS NULL OR pp.promotion.endDate >= :now)
         """)
     List<Promotion> findActivePromotionsByProductId(
             @Param("productId") Integer productId,
+            @Param("now") LocalDateTime now
+    );
+
+    @Query("""
+        SELECT pp.product.productId, MAX(pp.promotion.discountPercent)
+        FROM ProductPromotion pp
+        WHERE pp.product.productId IN :productIds
+          AND pp.promotion.isActive = true
+          AND pp.promotion.discountPercent IS NOT NULL
+          AND (pp.promotion.startDate IS NULL OR pp.promotion.startDate <= :now)
+          AND (pp.promotion.endDate IS NULL OR pp.promotion.endDate >= :now)
+        GROUP BY pp.product.productId
+        """)
+    List<Object[]> findMaxDiscountPercentByProductIds(
+            @Param("productIds") List<Integer> productIds,
             @Param("now") LocalDateTime now
     );
 }

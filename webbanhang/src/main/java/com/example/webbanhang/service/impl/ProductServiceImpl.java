@@ -11,12 +11,14 @@ import com.example.webbanhang.security.SecurityUtil;
 import com.example.webbanhang.service.ProductService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.apache.poi.ss.usermodel.*;
+import org.apache.poi.xssf.usermodel.XSSFWorkbook;
+import org.hibernate.Hibernate;
 import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
-import org.apache.poi.ss.usermodel.*;
-import org.apache.poi.xssf.usermodel.XSSFWorkbook;
 import org.springframework.util.StringUtils;
 import org.springframework.web.multipart.MultipartFile;
 
@@ -30,20 +32,67 @@ import java.util.*;
 @RequiredArgsConstructor
 public class ProductServiceImpl implements ProductService {
 
-    private final ProductRepository      productRepository;
+    private final ProductRepository productRepository;
     private final ProductImageRepository productImageRepository;
-    private final CategoryRepository     categoryRepository;
-    private final ReviewRepository       reviewRepository;
-    private final PromotionRepository    promotionRepository;
-    private final UserRepository         userRepository;
+    private final CategoryRepository categoryRepository;
+    private final ReviewRepository reviewRepository;
+    private final PromotionRepository promotionRepository;
+    private final UserRepository userRepository;
 
-    // ── Mapper ────────────────────────────────────────────────────────────────
+    private record ProductExtraData(
+            Map<Integer, Double> avgRatingMap,
+            Map<Integer, Long> reviewCountMap,
+            Map<Integer, Integer> discountPercentMap
+    ) {}
+
+    private ProductExtraData loadExtraData(List<Product> products) {
+        List<Integer> productIds = products.stream()
+                .map(Product::getProductId)
+                .toList();
+
+        Map<Integer, Double> avgRatingMap = new HashMap<>();
+        Map<Integer, Long> reviewCountMap = new HashMap<>();
+        Map<Integer, Integer> discountPercentMap = new HashMap<>();
+
+        if (productIds.isEmpty()) {
+            return new ProductExtraData(avgRatingMap, reviewCountMap, discountPercentMap);
+        }
+
+        reviewRepository.calculateRatingStatsByProductIds(productIds)
+                .forEach(row -> {
+                    Integer productId = (Integer) row[0];
+                    Double avg = ((Number) row[1]).doubleValue();
+                    Long count = ((Number) row[2]).longValue();
+
+                    avgRatingMap.put(productId, avg);
+                    reviewCountMap.put(productId, count);
+                });
+
+        promotionRepository.findMaxDiscountPercentByProductIds(productIds, LocalDateTime.now())
+                .forEach(row -> {
+                    Integer productId = (Integer) row[0];
+                    Integer discountPercent = ((Number) row[1]).intValue();
+
+                    discountPercentMap.put(productId, discountPercent);
+                });
+
+        return new ProductExtraData(avgRatingMap, reviewCountMap, discountPercentMap);
+    }
 
     private ProductResponse toResponse(Product product) {
 
-        // Ảnh
-        List<ProductImage> images = productImageRepository
-                .findByProductProductIdOrderByDisplayOrderAsc(product.getProductId());
+        List<ProductImage> images;
+
+        if (Hibernate.isInitialized(product.getImages())) {
+            images = product.getImages() == null
+                    ? List.of()
+                    : product.getImages().stream()
+                    .sorted(Comparator.comparing(ProductImage::getDisplayOrder, Comparator.nullsLast(Integer::compareTo)))
+                    .toList();
+        } else {
+            images = productImageRepository
+                    .findByProductProductIdOrderByDisplayOrderAsc(product.getProductId());
+        }
 
         List<ProductImageResponse> imageResponses = images.stream()
                 .map(img -> ProductImageResponse.builder()
@@ -55,18 +104,14 @@ public class ProductServiceImpl implements ProductService {
                 .toList();
 
         String mainImageUrl = images.stream()
-                .filter(ProductImage::getIsMain)
+                .filter(img -> Boolean.TRUE.equals(img.getIsMain()))
                 .findFirst()
                 .map(ProductImage::getImageUrl)
                 .orElse(images.isEmpty() ? null : images.get(0).getImageUrl());
 
-        // Rating
-        Double avgRating  = reviewRepository.calculateAverageRating(product.getProductId());
-        long   reviewCount = reviewRepository.countByProductProductId(product.getProductId());
+        Double avgRating = reviewRepository.calculateAverageRating(product.getProductId());
+        long reviewCount = reviewRepository.countByProductProductId(product.getProductId());
 
-        // Khuyến mãi đang hoạt động — lấy % giảm cao nhất
-        // FIX: Promotion schema mới có thể có discountPercent NULL (nếu dùng discountAmount)
-        // → chỉ lấy promotion có discountPercent != null
         List<Promotion> activePromotions = promotionRepository
                 .findActivePromotionsByProductId(product.getProductId(), LocalDateTime.now());
 
@@ -79,7 +124,72 @@ public class ProductServiceImpl implements ProductService {
         BigDecimal discountedPrice = null;
         if (discountPercent != null) {
             BigDecimal factor = BigDecimal.valueOf(100 - discountPercent)
-                    .divide(BigDecimal.valueOf(100));
+                    .divide(BigDecimal.valueOf(100), 2, RoundingMode.HALF_UP);
+
+            discountedPrice = product.getPrice()
+                    .multiply(factor)
+                    .setScale(2, RoundingMode.HALF_UP);
+        }
+
+        return ProductResponse.builder()
+                .productId(product.getProductId())
+                .productName(product.getProductName())
+                .description(product.getDescription())
+                .price(product.getPrice())
+                .discountedPrice(discountedPrice)
+                .discountPercent(discountPercent)
+                .stock(product.getStock())
+                .categoryId(product.getCategory().getCategoryId())
+                .categoryName(product.getCategory().getCategoryName())
+                .images(imageResponses)
+                .mainImageUrl(mainImageUrl)
+                .averageRating(avgRating)
+                .reviewCount(reviewCount)
+                .createdAt(product.getCreatedAt())
+                .build();
+    }
+
+    private ProductResponse toResponse(Product product, ProductExtraData extraData) {
+        List<ProductImage> images;
+
+        if (Hibernate.isInitialized(product.getImages())) {
+            images = product.getImages() == null
+                    ? List.of()
+                    : product.getImages().stream()
+                    .sorted(Comparator.comparing(ProductImage::getDisplayOrder, Comparator.nullsLast(Integer::compareTo)))
+                    .toList();
+        } else {
+            images = productImageRepository
+                    .findByProductProductIdOrderByDisplayOrderAsc(product.getProductId());
+        }
+
+        List<ProductImageResponse> imageResponses = images.stream()
+                .map(img -> ProductImageResponse.builder()
+                        .imageId(img.getImageId())
+                        .imageUrl(img.getImageUrl())
+                        .isMain(img.getIsMain())
+                        .displayOrder(img.getDisplayOrder())
+                        .build())
+                .toList();
+
+        String mainImageUrl = images.stream()
+                .filter(img -> Boolean.TRUE.equals(img.getIsMain()))
+                .findFirst()
+                .map(ProductImage::getImageUrl)
+                .orElse(images.isEmpty() ? null : images.get(0).getImageUrl());
+
+        Integer productId = product.getProductId();
+
+        Double avgRating = extraData.avgRatingMap().getOrDefault(productId, 0.0);
+        Long reviewCount = extraData.reviewCountMap().getOrDefault(productId, 0L);
+        Integer discountPercent = extraData.discountPercentMap().get(productId);
+
+        BigDecimal discountedPrice = null;
+
+        if (discountPercent != null) {
+            BigDecimal factor = BigDecimal.valueOf(100 - discountPercent)
+                    .divide(BigDecimal.valueOf(100), 2, RoundingMode.HALF_UP);
+
             discountedPrice = product.getPrice()
                     .multiply(factor)
                     .setScale(2, RoundingMode.HALF_UP);
@@ -104,10 +214,21 @@ public class ProductServiceImpl implements ProductService {
     }
 
     public ProductSummaryResponse toSummaryResponse(Product product) {
-        String mainImageUrl = productImageRepository
-                .findByProductProductIdAndIsMainTrue(product.getProductId())
-                .map(ProductImage::getImageUrl)
-                .orElse(null);
+        String mainImageUrl;
+
+        if (Hibernate.isInitialized(product.getImages()) && product.getImages() != null) {
+            mainImageUrl = product.getImages().stream()
+                    .filter(img -> Boolean.TRUE.equals(img.getIsMain()))
+                    .findFirst()
+                    .map(ProductImage::getImageUrl)
+                    .orElse(null);
+        } else {
+            mainImageUrl = productImageRepository
+                    .findByProductProductIdAndIsMainTrue(product.getProductId())
+                    .map(ProductImage::getImageUrl)
+                    .orElse(null);
+        }
+
         return ProductSummaryResponse.builder()
                 .productId(product.getProductId())
                 .productName(product.getProductName())
@@ -118,8 +239,6 @@ public class ProductServiceImpl implements ProductService {
                 .build();
     }
 
-    // ── Public ────────────────────────────────────────────────────────────────
-
     @Override
     @Transactional(readOnly = true)
     public PageResponse<ProductResponse> getAll(String keyword,
@@ -127,21 +246,39 @@ public class ProductServiceImpl implements ProductService {
                                                 BigDecimal minPrice,
                                                 BigDecimal maxPrice,
                                                 Pageable pageable) {
-        // FIX: findWithFilters đã lọc isActive = true trong query (xem ProductRepository)
-        Page<Product> page = productRepository.findWithFilters(
-                keyword, categoryId, minPrice, maxPrice, pageable);
-        List<ProductResponse> content = page.getContent().stream()
-                .map(this::toResponse)
+
+        Page<Integer> idPage = productRepository.findProductIdsWithFilters(
+                keyword, categoryId, minPrice, maxPrice, pageable
+        );
+
+        if (idPage.isEmpty()) {
+            Page<Product> emptyPage = Page.empty(pageable);
+            return PageResponse.of(emptyPage, List.of());
+        }
+
+        List<Integer> ids = idPage.getContent();
+
+        List<Product> products = productRepository.findByIdsWithDetails(ids);
+
+        products.sort(Comparator.comparingInt(p -> ids.indexOf(p.getProductId())));
+
+        ProductExtraData extraData = loadExtraData(products);
+
+        List<ProductResponse> content = products.stream()
+                .map(product -> toResponse(product, extraData))
                 .toList();
-        return PageResponse.of(page, content);
+
+        Page<Product> productPage = new PageImpl<>(products, pageable, idPage.getTotalElements());
+
+        return PageResponse.of(productPage, content);
     }
 
     @Override
     @Transactional(readOnly = true)
     public ProductResponse getById(Integer productId) {
-        // FIX: chỉ lấy sản phẩm đang active
         Product product = productRepository.findByProductIdAndIsActiveTrue(productId)
                 .orElseThrow(() -> new ResourceNotFoundException("Product", productId));
+
         return toResponse(product);
     }
 
@@ -151,12 +288,17 @@ public class ProductServiceImpl implements ProductService {
         if (!productRepository.existsByProductIdAndIsActiveTrue(productId)) {
             throw new ResourceNotFoundException("Product", productId);
         }
-        Double avg        = reviewRepository.calculateAverageRating(productId);
+
+        Double avg = reviewRepository.calculateAverageRating(productId);
         long totalReviews = reviewRepository.countByProductProductId(productId);
 
         List<Object[]> rawDist = reviewRepository.countByRatingGrouped(productId);
+
         Map<Integer, Long> dist = new LinkedHashMap<>();
-        for (int i = 5; i >= 1; i--) dist.put(i, 0L);
+        for (int i = 5; i >= 1; i--) {
+            dist.put(i, 0L);
+        }
+
         rawDist.forEach(row -> dist.put((Integer) row[0], (Long) row[1]));
 
         return ProductRatingStatsResponse.builder()
@@ -170,21 +312,42 @@ public class ProductServiceImpl implements ProductService {
     @Override
     @Transactional(readOnly = true)
     public List<ProductResponse> getFeaturedProducts(Pageable pageable) {
-        // FIX: findFeaturedProducts cần lọc isActive = true (xem ProductRepository)
-        return productRepository.findFeaturedProducts(pageable).stream()
-                .map(this::toResponse)
+        List<Integer> ids = productRepository.findFeaturedProductIds(pageable);
+
+        if (ids.isEmpty()) {
+            return List.of();
+        }
+
+        List<Product> products = productRepository.findFeaturedProductsWithDetails(ids);
+
+        products.sort(Comparator.comparingInt(p -> ids.indexOf(p.getProductId())));
+
+        ProductExtraData extraData = loadExtraData(products);
+
+        return products.stream()
+                .map(product -> toResponse(product, extraData))
                 .toList();
     }
 
     @Override
     @Transactional(readOnly = true)
     public List<ProductResponse> getProductsWithActivePromotion() {
-        return productRepository.findProductsWithActivePromotion().stream()
-                .map(this::toResponse)
+        List<Integer> ids = productRepository.findProductIdsWithActivePromotion();
+
+        if (ids.isEmpty()) {
+            return List.of();
+        }
+
+        List<Product> products = productRepository.findProductsWithActivePromotionDetails(ids);
+
+        products.sort(Comparator.comparingInt(p -> ids.indexOf(p.getProductId())));
+
+        ProductExtraData extraData = loadExtraData(products);
+
+        return products.stream()
+                .map(product -> toResponse(product, extraData))
                 .toList();
     }
-
-    // ── Admin ─────────────────────────────────────────────────────────────────
 
     @Override
     @Transactional
@@ -192,8 +355,8 @@ public class ProductServiceImpl implements ProductService {
         Category category = categoryRepository.findById(request.getCategoryId())
                 .orElseThrow(() -> new ResourceNotFoundException("Category", request.getCategoryId()));
 
-        // FIX: lấy user đang đăng nhập làm createdBy (schema mới có cột CreatedBy)
         Integer currentUserId = SecurityUtil.getCurrentUserId();
+
         User createdBy = userRepository.findById(currentUserId)
                 .orElseThrow(() -> new ResourceNotFoundException("User", currentUserId));
 
@@ -203,13 +366,15 @@ public class ProductServiceImpl implements ProductService {
                 .price(request.getPrice())
                 .stock(request.getStock())
                 .category(category)
-                .createdBy(createdBy)           // FIX: set createdBy
-                .isActive(true)                 // FIX: tường minh set isActive
+                .createdBy(createdBy)
+                .isActive(true)
                 .build();
 
         productRepository.save(product);
+
         log.info("[Product] Tạo sản phẩm: id={}, name={}, createdBy={}",
                 product.getProductId(), product.getProductName(), currentUserId);
+
         return toResponse(product);
     }
 
@@ -225,6 +390,7 @@ public class ProductServiceImpl implements ProductService {
         }
 
         Integer currentUserId = SecurityUtil.getCurrentUserId();
+
         User createdBy = userRepository.findById(currentUserId)
                 .orElseThrow(() -> new ResourceNotFoundException("User", currentUserId));
 
@@ -313,7 +479,6 @@ public class ProductServiceImpl implements ProductService {
         product.setPrice(request.getPrice());
         product.setStock(request.getStock());
         product.setCategory(category);
-        // updatedAt tự động cập nhật qua @UpdateTimestamp trong entity
 
         return toResponse(productRepository.save(product));
     }
@@ -324,14 +489,11 @@ public class ProductServiceImpl implements ProductService {
         Product product = productRepository.findById(productId)
                 .orElseThrow(() -> new ResourceNotFoundException("Product", productId));
 
-        // FIX: soft delete — set isActive = false
-        // tránh lỗi FK từ OrderDetails, CartItems, Reviews, PostProducts
         product.setIsActive(false);
         productRepository.save(product);
+
         log.info("[Product] Ẩn sản phẩm id={}", productId);
     }
-
-    // ── Image management ──────────────────────────────────────────────────────
 
     @Override
     @Transactional
@@ -351,6 +513,7 @@ public class ProductServiceImpl implements ProductService {
                 .build();
 
         productImageRepository.save(image);
+
         return toResponse(product);
     }
 
@@ -363,6 +526,7 @@ public class ProductServiceImpl implements ProductService {
         if (!image.getProduct().getProductId().equals(productId)) {
             throw new BadRequestException("Ảnh không thuộc sản phẩm này");
         }
+
         productImageRepository.delete(image);
     }
 
@@ -372,6 +536,7 @@ public class ProductServiceImpl implements ProductService {
         if (!productRepository.existsById(productId)) {
             throw new ResourceNotFoundException("Product", productId);
         }
+
         ProductImage image = productImageRepository.findById(imageId)
                 .orElseThrow(() -> new ResourceNotFoundException("ProductImage", imageId));
 

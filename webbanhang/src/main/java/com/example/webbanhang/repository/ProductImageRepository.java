@@ -15,6 +15,8 @@ public interface ProductImageRepository extends JpaRepository<ProductImage, Inte
 
     List<ProductImage> findByProductProductIdOrderByDisplayOrderAsc(Integer productId);
 
+    List<ProductImage> findByProductProductIdInOrderByDisplayOrderAsc(List<Integer> productIds);
+
     Optional<ProductImage> findByProductProductIdAndIsMainTrue(Integer productId);
 
     boolean existsByProductProductId(Integer productId);

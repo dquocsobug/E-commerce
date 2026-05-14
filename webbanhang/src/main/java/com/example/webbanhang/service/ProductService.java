@@ -20,7 +20,7 @@ public interface ProductService {
                                          BigDecimal maxPrice,
                                          Pageable pageable);
 
-    /** Lấy chi tiết sản phẩm (bao gồm ảnh, rating, khuyến mãi). */
+    /** Lấy chi tiết sản phẩm. */
     ProductResponse getById(Integer productId);
 
     /** [ADMIN] Tạo sản phẩm mới. */
@@ -44,11 +44,12 @@ public interface ProductService {
     /** Lấy thống kê rating của sản phẩm. */
     ProductRatingStatsResponse getRatingStats(Integer productId);
 
-    /** Lấy danh sách sản phẩm nổi bật (xuất hiện trong bài viết PUBLISHED). */
+    /** Lấy danh sách sản phẩm nổi bật, xuất hiện trong bài viết APPROVED. */
     List<ProductResponse> getFeaturedProducts(Pageable pageable);
 
     /** Lấy sản phẩm đang có khuyến mãi. */
     List<ProductResponse> getProductsWithActivePromotion();
+
     /** [ADMIN] Import danh sách sản phẩm từ file Excel. */
     void importFromExcel(MultipartFile file);
 }
