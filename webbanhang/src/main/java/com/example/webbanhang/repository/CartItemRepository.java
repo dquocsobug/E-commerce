@@ -38,12 +38,10 @@ public interface CartItemRepository extends JpaRepository<CartItem, Integer> {
 
     // CartItemRepository.java — cần JOIN FETCH cả promotions
     @Query("""
-    SELECT ci FROM CartItem ci
+    SELECT DISTINCT ci
+    FROM CartItem ci
     JOIN FETCH ci.product p
-    JOIN FETCH p.category
-    LEFT JOIN FETCH p.images
-    LEFT JOIN FETCH p.productPromotions pp
-    LEFT JOIN FETCH pp.promotion
+    LEFT JOIN FETCH p.category
     WHERE ci.cart.cartId = :cartId
 """)
     List<CartItem> findByCartIdWithProduct(@Param("cartId") Integer cartId);
