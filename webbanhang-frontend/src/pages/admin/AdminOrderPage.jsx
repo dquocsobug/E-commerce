@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
+import { useQuery } from "@tanstack/react-query";
 import toast from "react-hot-toast";
 import {
   Search,
@@ -60,54 +61,45 @@ const unwrapList = (res) => {
 };
 
 export default function AdminOrderPage() {
-  const [orders, setOrders] = useState([]);
   const [status, setStatus] = useState("");
   const [userId, setUserId] = useState("");
   const [fromDate, setFromDate] = useState("");
   const [toDate, setToDate] = useState("");
 
-  const [loading, setLoading] = useState(false);
   const [savingId, setSavingId] = useState(null);
   const [draftStatus, setDraftStatus] = useState({});
 
-  const fetchOrders = async () => {
-    setLoading(true);
+  const {
+  data: orders = [],
+  isLoading: loading,
+  refetch: refetchOrders,
+} = useQuery({
+  queryKey: ["admin-orders", status, userId, fromDate, toDate],
+  queryFn: async () => {
+    const params = {
+      page: 0,
+      size: 100,
+    };
 
-    try {
-      const params = {
-        page: 0,
-        size: 100,
-      };
+    if (status) params.status = status;
+    if (userId.trim()) params.userId = userId.trim();
+    if (fromDate) params.fromDate = fromDate;
+    if (toDate) params.toDate = toDate;
 
-      if (status) params.status = status;
-      if (userId.trim()) params.userId = userId.trim();
-      if (fromDate) params.fromDate = fromDate;
-      if (toDate) params.toDate = toDate;
-
-      const res = await orderApi.getAll(params);
-      const list = unwrapList(res);
-
-      setOrders(list);
-
-      const nextDraft = {};
-      list.forEach((order) => {
-        nextDraft[order.orderId] = order.status;
-      });
-      setDraftStatus(nextDraft);
-    } catch (error) {
-      console.error("Lỗi tải đơn hàng:", error);
-      toast.error(
-        error?.response?.data?.message || "Không tải được danh sách đơn hàng"
-      );
-    } finally {
-      setLoading(false);
-    }
-  };
+    const res = await orderApi.getAll(params);
+    return unwrapList(res);
+  },
+});
 
   useEffect(() => {
-    fetchOrders();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  const nextDraft = {};
+
+  orders.forEach((order) => {
+    nextDraft[order.orderId] = order.status;
+  });
+
+  setDraftStatus(nextDraft);
+}, [orders]);
 
   const stats = useMemo(() => {
     return {
@@ -120,17 +112,16 @@ export default function AdminOrderPage() {
   }, [orders]);
 
   const handleSearch = (e) => {
-    e.preventDefault();
-    fetchOrders();
-  };
+  e.preventDefault();
+  refetchOrders();
+};
 
   const handleReset = () => {
-    setStatus("");
-    setUserId("");
-    setFromDate("");
-    setToDate("");
-    setTimeout(fetchOrders, 0);
-  };
+  setStatus("");
+  setUserId("");
+  setFromDate("");
+  setToDate("");
+};
 
   const handleDraftStatusChange = (orderId, nextStatus) => {
     setDraftStatus((prev) => ({
@@ -155,7 +146,7 @@ export default function AdminOrderPage() {
       });
 
       toast.success("Cập nhật trạng thái đơn hàng thành công");
-      await fetchOrders();
+      await refetchOrders();
     } catch (error) {
       console.error("Lỗi cập nhật trạng thái:", error);
       toast.error(

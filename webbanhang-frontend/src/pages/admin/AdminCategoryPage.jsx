@@ -1,4 +1,5 @@
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
+import { useQuery } from "@tanstack/react-query";
 import toast from "react-hot-toast";
 import {
   FolderTree,
@@ -30,30 +31,22 @@ const unwrapList = (res) => {
 };
 
 export default function AdminCategoryPage() {
-  const [categories, setCategories] = useState([]);
   const [form, setForm] = useState(emptyForm);
   const [editingCategory, setEditingCategory] = useState(null);
   const [showForm, setShowForm] = useState(false);
-  const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
 
-  const fetchCategories = async () => {
-    setLoading(true);
-
-    try {
-      const res = await categoryApi.getAll();
-      setCategories(unwrapList(res));
-    } catch (error) {
-      console.error("Lỗi tải danh mục:", error);
-      toast.error(error?.response?.data?.message || "Không tải được danh mục");
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  useEffect(() => {
-    fetchCategories();
-  }, []);
+  const {
+  data: categories = [],
+  isLoading: loading,
+  refetch: refetchCategories,
+} = useQuery({
+  queryKey: ["admin-categories"],
+  queryFn: async () => {
+    const res = await categoryApi.getAll();
+    return unwrapList(res);
+  },
+});
 
   const stats = useMemo(() => {
     const totalProducts = categories.reduce(
@@ -129,7 +122,7 @@ export default function AdminCategoryPage() {
       }
 
       resetForm();
-      await fetchCategories();
+      await refetchCategories();
     } catch (error) {
       console.error("Lỗi lưu danh mục:", error);
       toast.error(error?.response?.data?.message || "Lưu danh mục thất bại");
@@ -148,7 +141,7 @@ export default function AdminCategoryPage() {
     try {
       await categoryApi.delete(category.categoryId);
       toast.success("Đã xóa danh mục");
-      await fetchCategories();
+      await refetchCategories();
     } catch (error) {
       console.error("Lỗi xóa danh mục:", error);
       toast.error(
@@ -246,7 +239,7 @@ export default function AdminCategoryPage() {
             Thêm danh mục
           </button>
 
-          <button type="button" className="admin-btn ghost" onClick={fetchCategories}>
+          <button type="button" className="admin-btn ghost" onClick={() => refetchCategories()}>
             <RefreshCcw size={17} />
             Làm mới
           </button>

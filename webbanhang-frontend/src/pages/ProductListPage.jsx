@@ -317,7 +317,7 @@ const {
     return res?.data?.data || res?.data || res;
   },
 
-  placeholderData: (previousData) => previousData,
+  placeholderData: keepPreviousData,
 });
 
 const products = productData?.content || [];

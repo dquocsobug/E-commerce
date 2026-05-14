@@ -51,7 +51,7 @@ export default function PostListPage() {
   const [sort, setSort] = useState("NEWEST");
 
   const { data: posts = [], isLoading: postsLoading } = useQuery({
-  queryKey: ["posts", productId],
+  queryKey: ["posts", 0, productId || ""],
   queryFn: async () => {
     const data = await postApi.getAll({
       page: 0,

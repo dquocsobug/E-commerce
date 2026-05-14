@@ -1,4 +1,5 @@
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
+import { useQuery } from "@tanstack/react-query";
 import toast from "react-hot-toast";
 import {
   Search,
@@ -74,13 +75,9 @@ const shortText = (text, max = 120) => {
 };
 
 export default function AdminPostPage() {
-  const [posts, setPosts] = useState([]);
-  const [products, setProducts] = useState([]);
 
   const [keyword, setKeyword] = useState("");
   const [status, setStatus] = useState("");
-
-  const [loading, setLoading] = useState(false);
   const [actionId, setActionId] = useState(null);
 
   const [selectedPost, setSelectedPost] = useState(null);
@@ -100,41 +97,30 @@ export default function AdminPostPage() {
   post: null,
 });
 
-  const fetchPosts = async () => {
-    setLoading(true);
+  const {
+  data: posts = [],
+  isLoading: loading,
+  refetch: refetchPosts,
+} = useQuery({
+  queryKey: ["admin-posts", keyword, status],
+  queryFn: async () => {
+    const params = { page: 0, size: 100 };
 
-    try {
-      const params = { page: 0, size: 100 };
+    if (keyword.trim()) params.keyword = keyword.trim();
+    if (status) params.status = status;
 
-      if (keyword.trim()) params.keyword = keyword.trim();
-      if (status) params.status = status;
+    const res = await postApi.getAllAdmin(params);
+    return unwrapList(res);
+  },
+});
 
-      const res = await postApi.getAllAdmin(params);
-      setPosts(unwrapList(res));
-    } catch (error) {
-      console.error("Lỗi tải bài viết admin:", error);
-      toast.error(
-        error?.response?.data?.message || "Không tải được danh sách bài viết"
-      );
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const fetchProducts = async () => {
-    try {
-      const res = await productApi.getAll({ page: 0, size: 100 });
-      setProducts(unwrapList(res));
-    } catch (error) {
-      console.error("Lỗi tải sản phẩm:", error);
-    }
-  };
-
-  useEffect(() => {
-    fetchPosts();
-    fetchProducts();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+const { data: products = [] } = useQuery({
+  queryKey: ["admin-products-for-post"],
+  queryFn: async () => {
+    const res = await productApi.getAll({ page: 0, size: 100 });
+    return unwrapList(res);
+  },
+});
 
   const stats = useMemo(() => {
     return {
@@ -146,15 +132,14 @@ export default function AdminPostPage() {
   }, [posts]);
 
   const handleSearch = (e) => {
-    e.preventDefault();
-    fetchPosts();
-  };
+  e.preventDefault();
+  refetchPosts();
+};
 
   const handleReset = () => {
-    setKeyword("");
-    setStatus("");
-    setTimeout(fetchPosts, 0);
-  };
+  setKeyword("");
+  setStatus("");
+};
 
   const openCreateForm = () => {
     setEditingPost(null);
@@ -275,7 +260,7 @@ export default function AdminPostPage() {
       }
 
       closeForm();
-      await fetchPosts();
+      await refetchPosts();
     } catch (error) {
       console.error("Lỗi lưu bài viết:", error);
       toast.error(error?.response?.data?.message || "Lưu bài viết thất bại");
@@ -328,7 +313,7 @@ export default function AdminPostPage() {
 
     toast.success("Đã duyệt bài viết");
     closeConfirmModal();
-    await fetchPosts();
+    await refetchPosts();
 
     if (selectedPost?.postId === post.postId) {
       setSelectedPost(null);
@@ -364,7 +349,7 @@ export default function AdminPostPage() {
       toast.success("Đã từ chối bài viết");
       setRejectPost(null);
       setRejectReason("");
-      await fetchPosts();
+      await refetchPosts();
 
       if (selectedPost?.postId === rejectPost.postId) {
         setSelectedPost(null);
@@ -384,7 +369,7 @@ export default function AdminPostPage() {
     await postApi.deleteAdmin(post.postId);
     toast.success("Đã xóa bài viết");
     closeConfirmModal();
-    await fetchPosts();
+    await refetchPosts();
 
     if (selectedPost?.postId === post.postId) {
       setSelectedPost(null);

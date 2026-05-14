@@ -1,4 +1,5 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useMemo, useRef, useState } from "react";
+import { useQuery } from "@tanstack/react-query";
 import {
   Users,
   Package,
@@ -92,47 +93,44 @@ const paymentMethodLabel = {
 export default function AdminDashboardPage() {
   const reportRef = useRef(null);
 
-  const [counts, setCounts] = useState({
-    users: 0,
-    products: 0,
-    orders: 0,
-    posts: 0,
-  });
-
-  const [orders, setOrders] = useState([]);
   const [revenueType, setRevenueType] = useState("day");
-  const [loading, setLoading] = useState(true);
   const [exporting, setExporting] = useState(false);
 
-  useEffect(() => {
-    const fetchDashboard = async () => {
-      setLoading(true);
+  const {
+  data: dashboardData = {
+    counts: {
+      users: 0,
+      products: 0,
+      orders: 0,
+      posts: 0,
+    },
+    orders: [],
+  },
+  isLoading: loading,
+} = useQuery({
+  queryKey: ["admin-dashboard"],
+  queryFn: async () => {
+    const [users, products, allOrders, posts] = await Promise.all([
+      fetchAllPages(userApi.getAll, {}, 100),
+      fetchAllPages(productApi.getAll, {}, 100),
+      fetchAllPages(orderApi.getAll, {}, 100),
+      fetchAllPages(postApi.getAllAdmin, {}, 100),
+    ]);
 
-      try {
-        const [users, products, allOrders, posts] = await Promise.all([
-          fetchAllPages(userApi.getAll, {}, 100),
-          fetchAllPages(productApi.getAll, {}, 100),
-          fetchAllPages(orderApi.getAll, {}, 100),
-          fetchAllPages(postApi.getAllAdmin, {}, 100),
-        ]);
-
-        setOrders(allOrders);
-
-        setCounts({
-          users: users.length,
-          products: products.length,
-          orders: allOrders.length,
-          posts: posts.length,
-        });
-      } catch (error) {
-        console.error("Lỗi tải dữ liệu dashboard:", error);
-      } finally {
-        setLoading(false);
-      }
+    return {
+      counts: {
+        users: users.length,
+        products: products.length,
+        orders: allOrders.length,
+        posts: posts.length,
+      },
+      orders: allOrders,
     };
+  },
+});
 
-    fetchDashboard();
-  }, []);
+const counts = dashboardData.counts;
+const orders = dashboardData.orders;
 
   const completedOrders = useMemo(() => {
     return orders.filter(

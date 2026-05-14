@@ -2,13 +2,19 @@ import { Toaster } from "react-hot-toast";
 import { AuthProvider } from "./context/AuthContext";
 import { CartProvider } from "./context/CartContext";
 import AppRouter from "./routes/AppRouter";
+import AppPrefetch from "./components/AppPrefetch";
+
 import "./App.css";
 
 function App() {
   return (
     <AuthProvider>
       <CartProvider>
+
+        <AppPrefetch />
+
         <AppRouter />
+
         <Toaster
           position="top-right"
           toastOptions={{
@@ -19,10 +25,21 @@ function App() {
               fontSize: "14px",
               borderRadius: "10px",
             },
-            success: { iconTheme: { primary: "#6366f1", secondary: "#fff" } },
-            error: { iconTheme: { primary: "#ef4444", secondary: "#fff" } },
+            success: {
+              iconTheme: {
+                primary: "#6366f1",
+                secondary: "#fff",
+              },
+            },
+            error: {
+              iconTheme: {
+                primary: "#ef4444",
+                secondary: "#fff",
+              },
+            },
           }}
         />
+
       </CartProvider>
     </AuthProvider>
   );

@@ -1,4 +1,5 @@
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
+import { useQuery } from "@tanstack/react-query";
 import toast from "react-hot-toast";
 import {
   Search,
@@ -55,11 +56,8 @@ const toBackendDateTime = (value) => {
 };
 
 export default function AdminPromotionPage() {
-  const [promotions, setPromotions] = useState([]);
-  const [products, setProducts] = useState([]);
 
   const [keyword, setKeyword] = useState("");
-  const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
 
   const [showForm, setShowForm] = useState(false);
@@ -69,44 +67,32 @@ export default function AdminPromotionPage() {
   const [assignPromotion, setAssignPromotion] = useState(null);
   const [selectedProductIds, setSelectedProductIds] = useState([]);
 
-  const fetchPromotions = async () => {
-    setLoading(true);
+  const {
+  data: promotions = [],
+  isLoading: loading,
+  refetch: refetchPromotions,
+} = useQuery({
+  queryKey: ["admin-promotions", keyword],
+  queryFn: async () => {
+    const params = {
+      page: 0,
+      size: 100,
+    };
 
-    try {
-      const params = {
-        page: 0,
-        size: 100,
-      };
+    if (keyword.trim()) params.keyword = keyword.trim();
 
-      if (keyword.trim()) params.keyword = keyword.trim();
+    const res = await promotionApi.getAll(params);
+    return unwrapList(res);
+  },
+});
 
-      const res = await promotionApi.getAll(params);
-      setPromotions(unwrapList(res));
-    } catch (error) {
-      console.error("Lỗi tải khuyến mãi:", error);
-      toast.error(
-        error?.response?.data?.message || "Không tải được danh sách khuyến mãi"
-      );
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const fetchProducts = async () => {
-    try {
-      const res = await productApi.getAll({ page: 0, size: 200 });
-      setProducts(unwrapList(res));
-    } catch (error) {
-      console.error("Lỗi tải sản phẩm:", error);
-      toast.error("Không tải được danh sách sản phẩm");
-    }
-  };
-
-  useEffect(() => {
-    fetchPromotions();
-    fetchProducts();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+const { data: products = [] } = useQuery({
+  queryKey: ["admin-products-for-promotion"],
+  queryFn: async () => {
+    const res = await productApi.getAll({ page: 0, size: 200 });
+    return unwrapList(res);
+  },
+});
 
   const stats = useMemo(() => {
     return {
@@ -221,7 +207,7 @@ export default function AdminPromotionPage() {
       }
 
       resetForm();
-      await fetchPromotions();
+      await refetchPromotions();
     } catch (error) {
       console.error("Lỗi lưu khuyến mãi:", error);
       toast.error(error?.response?.data?.message || "Lưu khuyến mãi thất bại");
@@ -240,7 +226,7 @@ export default function AdminPromotionPage() {
     try {
       await promotionApi.delete(promotion.promotionId);
       toast.success("Đã xóa khuyến mãi");
-      await fetchPromotions();
+      await refetchPromotions();
     } catch (error) {
       console.error("Lỗi xóa khuyến mãi:", error);
       toast.error(error?.response?.data?.message || "Xóa khuyến mãi thất bại");
@@ -279,7 +265,7 @@ export default function AdminPromotionPage() {
       toast.success("Đã gán sản phẩm vào khuyến mãi");
       setAssignPromotion(null);
       setSelectedProductIds([]);
-      await fetchPromotions();
+      await refetchPromotions();
     } catch (error) {
       console.error("Lỗi gán sản phẩm:", error);
       toast.error(error?.response?.data?.message || "Gán sản phẩm thất bại");
@@ -296,7 +282,7 @@ export default function AdminPromotionPage() {
     try {
       await promotionApi.removeProduct(promotion.promotionId, product.productId);
       toast.success("Đã gỡ sản phẩm khỏi khuyến mãi");
-      await fetchPromotions();
+      await refetchPromotions();
     } catch (error) {
       console.error("Lỗi gỡ sản phẩm:", error);
       toast.error(error?.response?.data?.message || "Gỡ sản phẩm thất bại");
@@ -304,9 +290,9 @@ export default function AdminPromotionPage() {
   };
 
   const handleSearch = (e) => {
-    e.preventDefault();
-    fetchPromotions();
-  };
+  e.preventDefault();
+  refetchPromotions();
+};
 
   return (
     <div className="admin-promotion-page">
@@ -481,9 +467,8 @@ export default function AdminPromotionPage() {
             type="button"
             className="admin-btn ghost"
             onClick={() => {
-              setKeyword("");
-              setTimeout(fetchPromotions, 0);
-            }}
+  setKeyword("");
+}}
           >
             <RefreshCcw size={17} />
             Làm mới

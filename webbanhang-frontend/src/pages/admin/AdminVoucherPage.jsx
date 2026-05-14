@@ -1,4 +1,5 @@
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
+import { useQuery } from "@tanstack/react-query";
 import toast from "react-hot-toast";
 import {
   Search,
@@ -92,13 +93,9 @@ const toBackendDateTime = (value) => {
 };
 
 export default function AdminVoucherPage() {
-  const [vouchers, setVouchers] = useState([]);
-  const [users, setUsers] = useState([]);
-
   const [keyword, setKeyword] = useState("");
   const [isActive, setIsActive] = useState("");
 
-  const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
 
   const [showForm, setShowForm] = useState(false);
@@ -112,39 +109,30 @@ export default function AdminVoucherPage() {
   const [voucherUsers, setVoucherUsers] = useState([]);
   const [viewLoading, setViewLoading] = useState(false);
 
-  const fetchVouchers = async () => {
-    setLoading(true);
+  const {
+  data: vouchers = [],
+  isLoading: loading,
+  refetch: refetchVouchers,
+} = useQuery({
+  queryKey: ["admin-vouchers", keyword, isActive],
+  queryFn: async () => {
+    const params = { page: 0, size: 100 };
 
-    try {
-      const params = { page: 0, size: 100 };
+    if (keyword.trim()) params.keyword = keyword.trim();
+    if (isActive !== "") params.isActive = isActive;
 
-      if (keyword.trim()) params.keyword = keyword.trim();
-      if (isActive !== "") params.isActive = isActive;
+    const res = await voucherApi.getAll(params);
+    return unwrapList(res);
+  },
+});
 
-      const res = await voucherApi.getAll(params);
-      setVouchers(unwrapList(res));
-    } catch (error) {
-      console.error("Lỗi tải voucher:", error);
-      toast.error(error?.response?.data?.message || "Không tải được voucher");
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const fetchUsers = async () => {
-    try {
-      const res = await userApi.getAll({ page: 0, size: 200 });
-      setUsers(unwrapList(res));
-    } catch (error) {
-      console.error("Lỗi tải users:", error);
-    }
-  };
-
-  useEffect(() => {
-    fetchVouchers();
-    fetchUsers();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+const { data: users = [] } = useQuery({
+  queryKey: ["admin-users-for-voucher"],
+  queryFn: async () => {
+    const res = await userApi.getAll({ page: 0, size: 200 });
+    return unwrapList(res);
+  },
+});
 
   const stats = useMemo(
     () => ({
@@ -260,7 +248,7 @@ endDate: toInputDateTime(getVoucherEndDate(voucher)),
       }
 
       resetForm();
-      await fetchVouchers();
+      await refetchVouchers();
     } catch (error) {
       console.error("Lỗi lưu voucher:", error);
       toast.error(error?.response?.data?.message || "Lưu voucher thất bại");
@@ -281,7 +269,7 @@ endDate: toInputDateTime(getVoucherEndDate(voucher)),
     try {
       await voucherApi.delete(voucher.voucherId);
       toast.success("Đã xóa voucher");
-      await fetchVouchers();
+      await refetchVouchers();
     } catch (error) {
       console.error("Lỗi xóa voucher:", error);
       toast.error(error?.response?.data?.message || "Xóa voucher thất bại");
@@ -341,9 +329,9 @@ endDate: toInputDateTime(getVoucherEndDate(voucher)),
   };
 
   const handleSearch = (e) => {
-    e.preventDefault();
-    fetchVouchers();
-  };
+  e.preventDefault();
+  refetchVouchers();
+};
 
   return (
     <div className="admin-voucher-page">
@@ -544,10 +532,9 @@ endDate: toInputDateTime(getVoucherEndDate(voucher)),
             type="button"
             className="admin-btn ghost"
             onClick={() => {
-              setKeyword("");
-              setIsActive("");
-              setTimeout(fetchVouchers, 0);
-            }}
+  setKeyword("");
+  setIsActive("");
+}}
           >
             <RefreshCcw size={17} />
             Làm mới

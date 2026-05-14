@@ -1,4 +1,5 @@
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
+import { useQuery } from "@tanstack/react-query";
 import toast from "react-hot-toast";
 import * as XLSX from "xlsx";
 import {
@@ -56,13 +57,10 @@ const emptyForm = {
 };
 
 export default function AdminProductPage() {
-  const [products, setProducts] = useState([]);
-  const [categories, setCategories] = useState([]);
 
   const [keyword, setKeyword] = useState("");
   const [categoryId, setCategoryId] = useState("");
 
-  const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
   const [importing, setImporting] = useState(false);
   const [showTemplate, setShowTemplate] = useState(false);
@@ -71,45 +69,33 @@ export default function AdminProductPage() {
   const [editingProduct, setEditingProduct] = useState(null);
   const [form, setForm] = useState(emptyForm);
 
-  const fetchProducts = async () => {
-    setLoading(true);
+  const {
+  data: products = [],
+  isLoading: loading,
+  refetch: refetchProducts,
+} = useQuery({
+  queryKey: ["admin-products", keyword, categoryId],
+  queryFn: async () => {
+    const params = {
+      page: 0,
+      size: 100,
+    };
 
-    try {
-      const params = {
-        page: 0,
-        size: 100,
-      };
+    if (keyword.trim()) params.keyword = keyword.trim();
+    if (categoryId) params.categoryId = categoryId;
 
-      if (keyword.trim()) params.keyword = keyword.trim();
-      if (categoryId) params.categoryId = categoryId;
+    const res = await productApi.getAll(params);
+    return unwrapList(res);
+  },
+});
 
-      const res = await productApi.getAll(params);
-      setProducts(unwrapList(res));
-    } catch (error) {
-      console.error("Lỗi tải sản phẩm:", error);
-      toast.error(
-        error?.response?.data?.message || "Không tải được danh sách sản phẩm"
-      );
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const fetchCategories = async () => {
-    try {
-      const res = await categoryApi.getAll();
-      setCategories(unwrapList(res));
-    } catch (error) {
-      console.error("Lỗi tải danh mục:", error);
-      toast.error("Không tải được danh mục sản phẩm");
-    }
-  };
-
-  useEffect(() => {
-    fetchProducts();
-    fetchCategories();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+const { data: categories = [] } = useQuery({
+  queryKey: ["admin-categories-for-product"],
+  queryFn: async () => {
+    const res = await categoryApi.getAll();
+    return unwrapList(res);
+  },
+});
 
   const stats = useMemo(() => {
     return {
@@ -206,7 +192,7 @@ export default function AdminProductPage() {
       }
 
       resetForm();
-      await fetchProducts();
+      await refetchProducts();
     } catch (error) {
       console.error("Lỗi lưu sản phẩm:", error);
       toast.error(error?.response?.data?.message || "Lưu sản phẩm thất bại");
@@ -225,7 +211,7 @@ export default function AdminProductPage() {
     try {
       await productApi.delete(product.productId);
       toast.success("Đã ẩn sản phẩm");
-      await fetchProducts();
+      await refetchProducts();
     } catch (error) {
       console.error("Lỗi ẩn sản phẩm:", error);
       toast.error(error?.response?.data?.message || "Ẩn sản phẩm thất bại");
@@ -233,10 +219,9 @@ export default function AdminProductPage() {
   };
 
   const handleSearch = (e) => {
-    e.preventDefault();
-    fetchProducts();
-  };
-
+  e.preventDefault();
+  refetchProducts();
+};
   const handleImportExcel = async (e) => {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -255,7 +240,7 @@ export default function AdminProductPage() {
     try {
       await productApi.importExcel(formData);
       toast.success("Import sản phẩm thành công");
-      await fetchProducts();
+      await refetchProducts();
     } catch (error) {
       console.error("Lỗi import Excel:", error);
       toast.error(error?.response?.data?.message || "Import Excel thất bại");
@@ -478,10 +463,9 @@ export default function AdminProductPage() {
             type="button"
             className="admin-btn ghost"
             onClick={() => {
-              setKeyword("");
-              setCategoryId("");
-              setTimeout(fetchProducts, 0);
-            }}
+  setKeyword("");
+  setCategoryId("");
+}}
           >
             <RefreshCcw size={17} />
             Làm mới

@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
+import { useQuery } from "@tanstack/react-query";
 import toast from "react-hot-toast";
 import {
   Search,
@@ -78,10 +79,8 @@ const isUserDisabled = (user) => {
 };
 
 export default function AdminUserPage() {
-  const [users, setUsers] = useState([]);
   const [keyword, setKeyword] = useState("");
   const [role, setRole] = useState("");
-  const [loading, setLoading] = useState(false);
   const [savingId, setSavingId] = useState(null);
   const [draftRoles, setDraftRoles] = useState({});
   const [confirmModal, setConfirmModal] = useState({
@@ -90,38 +89,32 @@ export default function AdminUserPage() {
     type: "",
   });
 
-  const fetchUsers = async () => {
-    setLoading(true);
+const {
+  data: users = [],
+  isLoading: loading,
+  refetch: refetchUsers,
+} = useQuery({
+  queryKey: ["admin-users", keyword, role],
+  queryFn: async () => {
+    const params = {};
 
-    try {
-      const params = {};
-      if (keyword.trim()) params.keyword = keyword.trim();
-      if (role) params.role = role;
+    if (keyword.trim()) params.keyword = keyword.trim();
+    if (role) params.role = role;
 
-      const res = await userApi.getAll(params);
-      const list = unwrapList(res);
-
-      setUsers(list);
-
-      const nextDraft = {};
-      list.forEach((u) => {
-        nextDraft[u.userId] = u.role;
-      });
-      setDraftRoles(nextDraft);
-    } catch (error) {
-      console.error("Lỗi tải danh sách user:", error);
-      toast.error(
-        error?.response?.data?.message || "Không tải được danh sách người dùng"
-      );
-    } finally {
-      setLoading(false);
-    }
-  };
+    const res = await userApi.getAll(params);
+    return unwrapList(res);
+  },
+});
 
   useEffect(() => {
-    fetchUsers();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  const nextDraft = {};
+
+  users.forEach((u) => {
+    nextDraft[u.userId] = u.role;
+  });
+
+  setDraftRoles(nextDraft);
+}, [users]);
 
   const totalStats = useMemo(() => {
     return {
@@ -134,9 +127,9 @@ export default function AdminUserPage() {
   }, [users]);
 
   const handleSearch = (e) => {
-    e.preventDefault();
-    fetchUsers();
-  };
+  e.preventDefault();
+  refetchUsers();
+};
 
   const handleRoleDraftChange = (userId, nextRole) => {
     setDraftRoles((prev) => ({
@@ -165,7 +158,7 @@ export default function AdminUserPage() {
       });
 
       toast.success("Cập nhật role thành công");
-      await fetchUsers();
+      await refetchUsers();
     } catch (error) {
       console.error("Lỗi cập nhật role:", error);
       toast.error(error?.response?.data?.message || "Cập nhật role thất bại");
@@ -188,7 +181,7 @@ export default function AdminUserPage() {
       });
 
       toast.success("Nâng cấp khách hàng thân thiết thành công");
-      await fetchUsers();
+      await refetchUsers();
     } catch (error) {
       console.error("Lỗi nâng cấp loyal:", error);
       toast.error(error?.response?.data?.message || "Nâng cấp thất bại");
@@ -233,7 +226,7 @@ export default function AdminUserPage() {
       }
 
       closeConfirmModal();
-      await fetchUsers();
+      await refetchUsers();
     } catch (error) {
       console.error("Lỗi cập nhật trạng thái user:", error);
       toast.error(
@@ -314,10 +307,9 @@ export default function AdminUserPage() {
             type="button"
             className="admin-btn ghost"
             onClick={() => {
-              setKeyword("");
-              setRole("");
-              setTimeout(fetchUsers, 0);
-            }}
+  setKeyword("");
+  setRole("");
+}}
           >
             <RefreshCcw size={17} />
             Làm mới
