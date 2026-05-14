@@ -17,13 +17,34 @@ public interface VoucherRepository extends JpaRepository<Voucher, Integer> {
 
     boolean existsByVoucherCode(String voucherCode);
 
-    @Query("""
-        SELECT v FROM Voucher v
-        WHERE (:keyword IS NULL
-               OR LOWER(v.voucherCode) LIKE LOWER(CONCAT('%', :keyword, '%'))
-               OR LOWER(v.voucherName) LIKE LOWER(CONCAT('%', :keyword, '%')))
-          AND (:isActive IS NULL OR v.isActive = :isActive)
-        """)
+    @Query(value = """
+        SELECT *
+        FROM Vouchers v
+        WHERE (
+            CAST(:keyword AS text) IS NULL
+            OR LOWER(v.VoucherCode) LIKE LOWER(CONCAT('%', CAST(:keyword AS text), '%'))
+            OR LOWER(v.VoucherName) LIKE LOWER(CONCAT('%', CAST(:keyword AS text), '%'))
+        )
+        AND (
+            CAST(:isActive AS boolean) IS NULL
+            OR v.IsActive = CAST(:isActive AS boolean)
+        )
+        ORDER BY v.CreatedAt DESC
+        """,
+            countQuery = """
+        SELECT COUNT(*)
+        FROM Vouchers v
+        WHERE (
+            CAST(:keyword AS text) IS NULL
+            OR LOWER(v.VoucherCode) LIKE LOWER(CONCAT('%', CAST(:keyword AS text), '%'))
+            OR LOWER(v.VoucherName) LIKE LOWER(CONCAT('%', CAST(:keyword AS text), '%'))
+        )
+        AND (
+            CAST(:isActive AS boolean) IS NULL
+            OR v.IsActive = CAST(:isActive AS boolean)
+        )
+        """,
+            nativeQuery = true)
     Page<Voucher> findWithFilters(
             @Param("keyword") String keyword,
             @Param("isActive") Boolean isActive,

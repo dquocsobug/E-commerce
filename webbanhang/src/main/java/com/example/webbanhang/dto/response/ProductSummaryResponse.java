@@ -15,6 +15,7 @@ public class ProductSummaryResponse {
     private final Integer    productId;
     private final String     productName;
     private final BigDecimal price;
+    private final BigDecimal discountedPrice;
     private final Integer    stock;
     private final String     mainImageUrl;
     private final String     categoryName;

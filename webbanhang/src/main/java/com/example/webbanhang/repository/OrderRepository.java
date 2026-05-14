@@ -17,7 +17,6 @@ import java.util.Optional;
 
 public interface OrderRepository extends JpaRepository<Order, Integer> {
 
-    // Page chỉ fetch Order + User, không fetch collection
     @EntityGraph(attributePaths = {"user"})
     Page<Order> findByUserUserId(Integer userId, Pageable pageable);
 
@@ -33,7 +32,6 @@ public interface OrderRepository extends JpaRepository<Order, Integer> {
     @EntityGraph(attributePaths = {"user"})
     Page<Order> findByPaymentStatus(PaymentStatus paymentStatus, Pageable pageable);
 
-    // Dùng cho màn detail, không Pageable nên JOIN FETCH được
     @Query("""
         SELECT DISTINCT o
         FROM Order o
@@ -44,7 +42,6 @@ public interface OrderRepository extends JpaRepository<Order, Integer> {
     """)
     Optional<Order> findByIdWithDetails(@Param("orderId") Integer orderId);
 
-    // Dùng để batch load nhiều order detail sau khi đã page Order
     @Query("""
         SELECT DISTINCT o
         FROM Order o
@@ -84,6 +81,7 @@ public interface OrderRepository extends JpaRepository<Order, Integer> {
         SELECT o
         FROM Order o
         WHERE o.createdAt BETWEEN :from AND :to
+        ORDER BY o.createdAt DESC
     """)
     Page<Order> findByDateRange(
             @Param("from") LocalDateTime from,
@@ -95,14 +93,15 @@ public interface OrderRepository extends JpaRepository<Order, Integer> {
     @Query("""
         SELECT o
         FROM Order o
-        WHERE (:userId IS NULL OR o.user.userId = :userId)
-          AND (:status IS NULL OR o.status = :status)
-          AND (:fromDate IS NULL OR o.createdAt >= :fromDate)
-          AND (:toDate IS NULL OR o.createdAt <= :toDate)
+        WHERE (CAST(:userId AS integer) IS NULL OR o.user.userId = :userId)
+          AND (CAST(:status AS string) IS NULL OR STR(o.status) = :status)
+          AND (CAST(:fromDate AS timestamp) IS NULL OR o.createdAt >= :fromDate)
+          AND (CAST(:toDate AS timestamp) IS NULL OR o.createdAt <= :toDate)
+        ORDER BY o.createdAt DESC
     """)
     Page<Order> findWithFilters(
             @Param("userId") Integer userId,
-            @Param("status") OrderStatus status,
+            @Param("status") String status,
             @Param("fromDate") LocalDateTime fromDate,
             @Param("toDate") LocalDateTime toDate,
             Pageable pageable

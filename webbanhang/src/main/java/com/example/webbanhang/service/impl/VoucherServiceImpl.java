@@ -261,8 +261,10 @@ public class VoucherServiceImpl implements VoucherService {
     @Override
     @Transactional(readOnly = true)
     public PageResponse<VoucherResponse> getAll(String keyword, Boolean isActive, Pageable pageable) {
+        String keywordFilter = StringUtils.hasText(keyword) ? keyword.trim() : null;
+
         Page<Voucher> page = voucherRepository.findWithFilters(
-                StringUtils.hasText(keyword) ? keyword : null,
+                keywordFilter,
                 isActive,
                 pageable
         );

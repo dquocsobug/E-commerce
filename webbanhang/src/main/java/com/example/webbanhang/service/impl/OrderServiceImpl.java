@@ -416,7 +416,15 @@ public class OrderServiceImpl implements OrderService {
             LocalDateTime toDate,
             Pageable pageable
     ) {
-        Page<Order> page = orderRepository.findWithFilters(userId, status, fromDate, toDate, pageable);
+        String statusFilter = status != null ? status.name() : null;
+
+        Page<Order> page = orderRepository.findWithFilters(
+                userId,
+                statusFilter,
+                fromDate,
+                toDate,
+                pageable
+        );
 
         List<Integer> orderIds = page.getContent()
                 .stream()
