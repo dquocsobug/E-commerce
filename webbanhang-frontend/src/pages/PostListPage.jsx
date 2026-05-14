@@ -59,16 +59,25 @@ export default function PostListPage() {
       productId: productId || undefined,
     });
 
-    return data?.content || data?.data?.content || data?.data || [];
+    const result =
+      data?.content || data?.data?.content || data?.data || [];
+
+    return Array.isArray(result) ? result : [];
   },
 });
 
 const { data: products = [] } = useQuery({
   queryKey: ["products-mentioned"],
   queryFn: async () => {
-    const data = await productApi.getAll({ page: 0, size: 6 });
+    const data = await productApi.getAll({
+      page: 0,
+      size: 6,
+    });
 
-    return data?.content || data?.data?.content || data?.data || [];
+    const result =
+      data?.content || data?.data?.content || data?.data || [];
+
+    return Array.isArray(result) ? result : [];
   },
 });
 
