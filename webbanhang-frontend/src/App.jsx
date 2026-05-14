@@ -2,7 +2,6 @@ import { Toaster } from "react-hot-toast";
 import { AuthProvider } from "./context/AuthContext";
 import { CartProvider } from "./context/CartContext";
 import AppRouter from "./routes/AppRouter";
-import AppPrefetch from "./components/AppPrefetch";
 
 import "./App.css";
 
@@ -10,9 +9,6 @@ function App() {
   return (
     <AuthProvider>
       <CartProvider>
-
-        <AppPrefetch />
-
         <AppRouter />
 
         <Toaster
@@ -39,7 +35,6 @@ function App() {
             },
           }}
         />
-
       </CartProvider>
     </AuthProvider>
   );
