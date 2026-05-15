@@ -14,12 +14,42 @@ const formatDate = (str) => {
   return d.toLocaleDateString("vi-VN", { day: "2-digit", month: "2-digit", year: "numeric" });
 };
 
+const parseDateVN = (str) => {
+  if (!str) return null;
+
+  // Ép timezone Việt Nam +07:00
+  return new Date(str.replace(" ", "T") + "+07:00");
+};
+
 const timeAgo = (str) => {
-  const diff = Date.now() - new Date(str.replace(" ", "T")).getTime();
-  const h = Math.floor(diff / 3600000);
-  if (h < 1) return "Vừa xong";
-  if (h < 24) return `${h} giờ trước`;
-  return `${Math.floor(h / 24)} ngày trước`;
+  const d = parseDateVN(str);
+
+  if (!d || Number.isNaN(d.getTime())) {
+    return "";
+  }
+
+  const diff = Date.now() - d.getTime();
+
+  // dưới 1 phút
+  if (diff < 60000) {
+    return "Vừa xong";
+  }
+
+  // phút
+  const minutes = Math.floor(diff / 60000);
+  if (minutes < 60) {
+    return `${minutes} phút trước`;
+  }
+
+  // giờ
+  const hours = Math.floor(diff / 3600000);
+  if (hours < 24) {
+    return `${hours} giờ trước`;
+  }
+
+  // ngày
+  const days = Math.floor(hours / 24);
+  return `${days} ngày trước`;
 };
 
 // ─── Sub-components ───────────────────────────────────────────────────────────
@@ -283,6 +313,7 @@ setCommentLast(data?.last ?? true);
 
 setComments((prev) => [createdComment, ...prev]);
       setCommentTotal((t) => t + 1);
+      setNewComment("");
       showToast("Bình luận của bạn đã được gửi.", "success");
     } catch {
       showToast("Bạn cần đăng nhập để bình luận.", "error");
